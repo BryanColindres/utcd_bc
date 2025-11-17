@@ -4,6 +4,13 @@ import base64
 import logging
 import time
 import sys
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+
+
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
 from db_controller import sector_id
@@ -138,17 +145,19 @@ def generar_tabla_html(sector,orden_compra):
     return html
 
 
+
 def obtener_token():
-    # Detalles de la aplicación registrada
-    client_id = ''  # Reemplaza con tu client_id
-    client_secret = ''  # Reemplaza con tu client_secret
-    tenant_id = ''  # Reemplaza con tu tenant_id
+    client_id = os.getenv("AZURE_CLIENT_ID")
+    client_secret = os.getenv("AZURE_CLIENT_SECRET")
+    tenant_id = os.getenv("AZURE_TENANT_ID")
+
+    username = os.getenv("USUARIO")
+    password = os.getenv("CONTRASENA")
     access_token = ''
-    
-    # Las credenciales del usuario
-    username = ''  # Reemplaza con el nombre de usuario
-    password = ''  # Reemplaza con la contraseña del usuario
-    
+    print(f"Usuario para token: {username}")
+    print(f"Client ID: {client_id}")
+    print(f"Tenant ID: {tenant_id}")
+
     # URL para obtener el token de acceso usando ROPC
     token_url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
     
@@ -173,7 +182,6 @@ def obtener_token():
         print("Error al obtener el token. Código de error:", response.status_code)
         #print(response.json())
     return access_token
-
 
 def obtener_correos_por_sector(cursor, sector):
     """
@@ -205,7 +213,8 @@ def envia_correo(sector,orden_compra):
         access_token = obtener_token()
     except:
         print('token fallo')
-    sector_obtenido = sector_id(sector).SECTOR
+    #sector_obtenido = sector_id(sector).SECTOR
+    sector_obtenido = sector
     print(f"Sector obtenido: {sector_obtenido}")
     if not access_token:
         print("No se pudo obtener el token de acceso. Abortando envío de correo.")
@@ -218,4 +227,6 @@ def envia_correo(sector,orden_compra):
         
         send_email(access_token, "Horas grua: Límite alcanzado", body, to_addresses, attachment_path=None,cc_addresses=None)
         return True
-        
+
+if __name__ == "__main__":
+    envia_correo("Sector Prueba","OC123456")
