@@ -272,6 +272,14 @@ class VerReportes(ctk.CTkFrame):
         item = selected[0]
         valores = self.tree.item(item)['values']
 
+        self.fecha_uso = valores[1]
+        fecha_limite = datetime.strptime(self.fecha_uso, "%Y-%m-%d").date() 
+        fecha_uso = datetime.now().date() - timedelta(days=7)
+        print(f"Fecha de uso: {fecha_uso}, Fecha límite: {fecha_limite}")
+        if fecha_limite < fecha_uso:
+            messagebox.showerror("Error", "No se puede editar un registro con más de 7 días de antigüedad.")
+            return
+        
         # --- Ventana de edición ---
         edit_win = ctk.CTkToplevel(self)
         edit_win.title(f"Editar ITEM {valores[0]}")
