@@ -220,6 +220,9 @@ class ordencompra(ctk.CTkFrame):
             messagebox.showerror("Error", "Complete todos los campos obligatorios")
             return
 
+        if not hasattr(self, "pdf") or not self.pdf:
+            messagebox.showerror("Error", "Debe subir un PDF antes de guardar el registro.")
+            return
         nombre_sector = self.sector_combo.get()
         codigo_sector = self.sectores.get(nombre_sector, None)
         if codigo_sector is None:
@@ -259,6 +262,14 @@ class ordencompra(ctk.CTkFrame):
         }
 
         # ====================================================
+        # GUARDAR EN BD
+        # ====================================================
+        if insertar_ORDEN_grua(datos):
+            messagebox.showinfo("Éxito", "Registro guardado correctamente en la Base de datos.")
+        else:
+            return
+
+        # ====================================================
         # SUBIR SOPORTE SOLO UNA VEZ POR PDF
         # ====================================================
         if not self.pdf_subido:
@@ -273,11 +284,6 @@ class ordencompra(ctk.CTkFrame):
 
             self.pdf_subido = True   # ← marca como "ya subido"
 
-        # ====================================================
-        # GUARDAR EN BD
-        # ====================================================
-        if insertar_ORDEN_grua(datos):
-            messagebox.showinfo("Éxito", "Registro guardado correctamente.")
 
         # Marca este item como guardado
         self.items_guardados.add(self.index_actual)

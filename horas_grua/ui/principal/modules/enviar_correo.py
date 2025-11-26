@@ -228,5 +228,3 @@ def envia_correo(sector,orden_compra):
         send_email(access_token, "Horas grua: Límite alcanzado", body, to_addresses, attachment_path=None,cc_addresses=None)
         return True
 
-if __name__ == "__main__":
-    envia_correo("Sector Prueba","OC123456")
