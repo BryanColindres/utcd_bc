@@ -9,7 +9,7 @@ import os
 
 # Ajustar path para importar db_controller y pdf
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
-from db_controller import insertar_ORDEN_grua, obtener_sectores
+from db_controller import insertar_ORDEN_grua, obtener_sectores,insertar_orden_en_ficha
 from ui.principal.modules.pdf import procesar_pdf   # <<=== IMPORTANTE
 
 class ordencompra(ctk.CTkFrame):
@@ -264,7 +264,9 @@ class ordencompra(ctk.CTkFrame):
         # ====================================================
         # GUARDAR EN BD
         # ====================================================
+        insertar_orden_en_ficha(datos)
         if insertar_ORDEN_grua(datos):
+            
             messagebox.showinfo("Éxito", "Registro guardado correctamente en la Base de datos.")
         else:
             return

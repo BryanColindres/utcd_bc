@@ -432,8 +432,32 @@ def insertar_ORDEN_grua(datos):
         messagebox.showinfo("Éxito", "✅ ¡Registro guardado correctamente en la Base de Datos!")
     except Exception as e:
         messagebox.showerror("Error", f"No se pudo guardar el registro:\n{str(e)}")
-        
-        
+
+def insertar_orden_en_ficha(datos):
+    """
+    Inserta un registro en la tabla horas_grua si no existe previamente
+    """
+    print('ENTRE A INSERTAR ORDEN EN FICHA')
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO HORAS_GRUA_evaluacion 
+            (nombre_proveedor, orden_info, horas_compra,completado,codigo_proveedor) 
+            VALUES (?, ?, ?,'NO',?)
+            """,
+            datos["PROVEEDOR"],
+            datos["ORDEN_COMPRA"],
+            datos["HORAS"],
+            datos["CODIGO_PROVEEDOR"]
+        )
+        conn.commit()
+        conn.close()
+        print("Registro guardado correctamente en la Base de Datos.")
+    except Exception as e:
+        print("Error al guardar el registro:\n", str(e))
+
 
 def hhmm_a_decimal(hhmm):
     """Convierte 'HH:MM' a número decimal (horas)."""
