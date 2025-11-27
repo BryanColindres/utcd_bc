@@ -6,7 +6,7 @@ from datetime import datetime
 import sys
 import os
 from .enviar_correo import envia_correo
-
+from .ficha_evaluacion_grua import EvaluacionProveedorModal
 
 # Ajustar path para importar db_controller
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
@@ -103,6 +103,12 @@ class RegistrarHoras(ctk.CTkFrame):
 
     # ---------------- FUNCIONES ----------------
 
+    def abrir_modal_evaluacion(self):
+        def recibir(data):
+            print("Datos recibidos de evaluación:", data)
+            # Aquí luego guardas en BD o exportas PDF
+
+        EvaluacionProveedorModal(self, callback=recibir)
     def abrir_calendario(self):
         # Crear ventana emergente
         top = Toplevel(self)
@@ -259,6 +265,7 @@ class RegistrarHoras(ctk.CTkFrame):
 
         try:
             validacion = validar_horas_disponibles(id_sector=self.id_sector, orden_compra=orden_solo, datos=datos)
+            self.abrir_modal_evaluacion()
             if validacion:
                 try:
                     if envia_correo(sector=self.id_sector, orden_compra=orden_solo):
