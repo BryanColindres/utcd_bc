@@ -207,24 +207,70 @@ def obtener_correos_por_sector(cursor, sector):
 
 # ---------------- enviar correo ----------------
 
-def envia_correo(sector,orden_compra):
+def envia_correo(sector, orden_compra, attachment_path=None):
+    """
+    Envía un correo notificando que se alcanzó el límite de horas para una orden.
+    Parámetros:
+        - sector: id del sector (lo usa sector_id(...) para obtener nombre)
+        - orden_compra: número de orden
+        - attachment_path: ruta opcional a un archivo para adjuntar (ej. .docx)
+    Retorna:
+        - True si el envío se realizó (o fue aceptado), False si falló.
+    """
     print('hola entre a la funcion de enviar correo')
     try:
         access_token = obtener_token()
-    except:
-        print('token fallo')
-    #sector_obtenido = sector_id(sector).SECTOR
-    sector_obtenido = sector
+    except Exception as e:
+        print('Error obteniendo token:', e)
+        access_token = None
+
+    try:
+        sector_obtenido = sector_id(sector).SECTOR
+    except Exception as e:
+        print(f"Error obteniendo nombre de sector para id {sector}: {e}")
+        # fallback a usar el valor tal cual
+        sector_obtenido = sector
+
     print(f"Sector obtenido: {sector_obtenido}")
+
     if not access_token:
         print("No se pudo obtener el token de acceso. Abortando envío de correo.")
         return False
-    else:
-        print("Token de acceso obtenido correctamente.")
-        body = generar_tabla_html(sector_obtenido,orden_compra)
-        to_addresses = ["bryan.colindres@eneeutcd.hn"]
-        cc_addresses = ["bryan.colindres@eneeutcd.hn"]
-        
-        send_email(access_token, "Horas grua: Límite alcanzado", body, to_addresses, attachment_path=None,cc_addresses=None)
-        return True
 
+    # Construir cuerpo y destinatarios (igual que antes)
+    try:
+        body = generar_tabla_html(sector_obtenido, orden_compra)
+    except Exception as e:
+        print(f"Error generando HTML del cuerpo del correo: {e}")
+        body = f"Se alcanzó el límite de horas para la orden {orden_compra} en sector {sector_obtenido}."
+
+    # Destinatarios por defecto (puedes sustituir por lógica por sector si existe)
+    to_addresses = ["bryan.colindres@eneeutcd.hn"]
+    cc_addresses = ["bryan.colindres@eneeutcd.hn"]
+
+    # Verificar adjunto (si se pasó)
+    if attachment_path:
+        try:
+            if not os.path.isabs(attachment_path):
+                # convertir a path absoluto por seguridad
+                attachment_path = os.path.abspath(attachment_path)
+            if not os.path.exists(attachment_path):
+                print(f"Adjunto solicitado no existe: {attachment_path}. Se enviará correo sin adjunto.")
+                attachment_path = None
+        except Exception as e:
+            print(f"Error comprobando adjunto: {e}")
+            attachment_path = None
+
+    # Enviar correo usando tu helper send_email (ya maneja token, attachments y reintentos)
+    try:
+        enviado = send_email(access_token, f"Horas grua: Límite alcanzado - Orden {orden_compra}", body,
+                             to_addresses, attachment_path=attachment_path, cc_addresses=cc_addresses)
+        if enviado:
+            print("Correo enviado correctamente.")
+            return True
+        else:
+            print("send_email devolvió False (envío fallido).")
+            return False
+    except Exception as e:
+        print(f"Error al enviar correo: {e}")
+        return False

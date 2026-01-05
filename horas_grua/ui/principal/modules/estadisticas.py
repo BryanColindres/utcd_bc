@@ -84,34 +84,41 @@ class Estadisticas(ctk.CTkFrame):
         if id_sector is None:
             cargando.destroy()
             return
+        
+        print('el id del sector es ',id_sector)
+        data = obtener_orden_compra(id_sector)
+        print('data de ordenes es ',data)
+        try:
+            ordenes = data["orden_compra"].tolist()
+            equipos = data['tipo_equipo'].tolist()
+            col = 0
+            row = 0
+            for i in range(len(data)):
+                orden = ordenes[i]
+                equipo = equipos[i]
+                resultado = horas_para_grafico(id_sector, orden, {"CANTIDAD_UTILIZADA": "0"}, equipo)
+                if resultado:
+                    cuadro = self.crear_cuadro_orden(orden, resultado,equipo)
+                    cuadro.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")
+                    col += 1
+                    if col > 1:
+                        col = 0
+                        row += 1
+            for i in range(2):
+                self.canvas_frame.grid_columnconfigure(i, weight=1)
+            cargando.destroy()
+        except Exception as e:
+            cargando.destroy()
 
-        ordenes = obtener_orden_compra(id_sector)
-        col = 0
-        row = 0
-        for orden in ordenes:
-            resultado = horas_para_grafico(id_sector, orden, {"CANTIDAD_UTILIZADA": "0"})
-            if resultado:
-                cuadro = self.crear_cuadro_orden(orden, resultado)
-                cuadro.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")
-                col += 1
-                if col > 1:
-                    col = 0
-                    row += 1
-
-        for i in range(2):
-            self.canvas_frame.grid_columnconfigure(i, weight=1)
-
-        cargando.destroy()
-
-    def crear_cuadro_orden(self, orden, resultado):
+    def crear_cuadro_orden(self, orden, resultado,equipo):
         cuadro = ctk.CTkFrame(self.canvas_frame, fg_color="#FDEDEC", corner_radius=15, height=250, width=250)
         cuadro.pack_propagate(False)
         
         proveedor = obtener_proveedor_por_orden(orden)
         ctk.CTkLabel(
             cuadro,
-            text=f"Orden: {orden}-{proveedor}",
-            font=("Poppins", 14, "bold"),
+            text=f"{orden} - {equipo} - {proveedor}",
+            font=("Poppins", 12, "bold"),
             text_color="#C0392B"
         ).pack(pady=(10,5))
 

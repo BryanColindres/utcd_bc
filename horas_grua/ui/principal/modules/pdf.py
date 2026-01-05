@@ -109,7 +109,7 @@ def procesar_pdf(pdf_path):
     with pdfplumber.open(pdf_path) as pdf:
         for p in pdf.pages:
             texto += "\n" + p.extract_text()
-    print(texto)
+    #print(texto)
     fecha_raw = extraer_fecha_orden(texto)
     fecha_orden = convertir_fecha(fecha_raw) if fecha_raw else None
 
@@ -138,7 +138,7 @@ def extraer_numero_compra(texto):
 # EJECUTAR
 # ------------------------------
 
-resultado = procesar_pdf(r"C:\Users\bryan.colindres\Downloads\4400008069 orden de compra con horas grua y horas canasta.PDF")
-print(json.dumps(resultado, indent=2, ensure_ascii=False))
+#resultado = procesar_pdf(r"C:\Users\bryan.colindres\Downloads\4400008069 orden de compra con horas grua y horas canasta.PDF")
+#print(json.dumps(resultado, indent=2, ensure_ascii=False))
 
 

@@ -312,6 +312,7 @@ def existe_registro(datos):
               AND RESPONSABLE = ?
               AND ORDEN_COMPRA = ?
               AND Activo = 1
+              AND TIPO_EQUIPO = ?
             """,
             datos["FECHA_UTILIZACION"],
             datos["SERVICIO_UTILIZADO"],
@@ -321,7 +322,8 @@ def existe_registro(datos):
             datos["CANTIDAD_UTILIZADA"],
             datos["JUSTIFICACION"],
             datos["RESPONSABLE"],
-            datos["ORDEN_COMPRA"]
+            datos["ORDEN_COMPRA"],
+            datos["TIPO_EQUIPO"]
         )
         count = cursor.fetchone()[0]
         conn.close()
@@ -347,11 +349,12 @@ def insertar_hora_grua(datos):
         concatenacion = f'Usuario: {usuario} -  {fecha}'
         conn = get_connection()
         cursor = conn.cursor()
+        print('los datos que se van a insertar son ',datos)
         cursor.execute(
             """
             INSERT INTO horas_grua 
-            (FECHA_UTILIZACION, SERVICIO_UTILIZADO, UNIDAD_DE_MEDIDA, HORA_DE_INICIO, HORA_FINAL, CANTIDAD_UTILIZADA, JUSTIFICACION, RESPONSABLE,ID_SECTOR,ORDEN_COMPRA,ACTIVO,USUARIO_ACTUALIZACION) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?,?,?,1,?)
+            (FECHA_UTILIZACION, SERVICIO_UTILIZADO, UNIDAD_DE_MEDIDA, HORA_DE_INICIO, HORA_FINAL, CANTIDAD_UTILIZADA, JUSTIFICACION, RESPONSABLE,ID_SECTOR,ORDEN_COMPRA,ACTIVO,USUARIO_ACTUALIZACION,TIPO_EQUIPO) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?,?,?,1,?,?)
             """,
             datos["FECHA_UTILIZACION"],
             datos["SERVICIO_UTILIZADO"],
@@ -363,7 +366,8 @@ def insertar_hora_grua(datos):
             datos["RESPONSABLE"],
             datos["ID_SECTOR"],
             datos["ORDEN_COMPRA"],
-            concatenacion
+            concatenacion,
+            datos["TIPO_EQUIPO"]
         )
         conn.commit()
         conn.close()
@@ -429,9 +433,36 @@ def insertar_ORDEN_grua(datos):
         )
         conn.commit()
         conn.close()
+        return True
         messagebox.showinfo("Éxito", "✅ ¡Registro guardado correctamente en la Base de Datos!")
     except Exception as e:
         messagebox.showerror("Error", f"No se pudo guardar el registro:\n{str(e)}")
+
+
+def existe_orden_evaluacion(datos):
+    """
+    Verifica si ya existe una orden idéntico en la tabla horas_grua
+    Retorna True si existe, False si no
+    """
+    try:   
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT COUNT(*) FROM HORAS_GRUA_evaluacion
+            WHERE orden_info = ? and codigo_proveedor = ? AND TIPO_EQUIPO = ?
+            """,(
+            datos["ORDEN_COMPRA"],
+            datos["CODIGO_PROVEEDOR"],
+            datos["TIPO_EQUIPO"]
+            )
+        )
+        count = cursor.fetchone()[0]
+        conn.close()
+        return count > 0
+    except Exception as e:
+        messagebox.showerror("Error", f"No se pudo verificar el registro:\n{str(e)}")
+        return True  # Para evitar insertar si hubo error
 
 def insertar_orden_en_ficha(datos):
     """
@@ -439,18 +470,22 @@ def insertar_orden_en_ficha(datos):
     """
     print('ENTRE A INSERTAR ORDEN EN FICHA')
     try:
+        if existe_orden_evaluacion(datos):
+            #messagebox.showwarning("Aviso", "Ya existe una orden idéntica en la base de datos.")
+            return False     
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute(
             """
             INSERT INTO HORAS_GRUA_evaluacion 
-            (nombre_proveedor, orden_info, horas_compra,completado,codigo_proveedor) 
-            VALUES (?, ?, ?,'NO',?)
+            (nombre_proveedor, orden_info, horas_compra,completado,codigo_proveedor,tipo_equipo) 
+            VALUES (?, ?, ?,'NO',?,?)
             """,
             datos["PROVEEDOR"],
             datos["ORDEN_COMPRA"],
             datos["HORAS"],
-            datos["CODIGO_PROVEEDOR"]
+            datos["CODIGO_PROVEEDOR"],
+            datos["TIPO_EQUIPO"]
         )
         conn.commit()
         conn.close()
@@ -475,7 +510,7 @@ def hhmm_a_decimal(hhmm):
     return float(hhmm)
 
 
-def horas_para_grafico(id_sector, orden_compra,datos):
+def horas_para_grafico(id_sector, orden_compra,datos,equipo = None):
     """"
     Verificar sino se ha pasado del 70% de horas disponibles
     """
@@ -495,12 +530,12 @@ def horas_para_grafico(id_sector, orden_compra,datos):
             -- Sumar las horas utilizadas (convertidas a decimal)
             SELECT @suma = SUM(DATEDIFF(MINUTE, CAST('00:00' AS TIME), cantidad_utilizada)) / 60.0
             FROM HORAS_GRUA
-            WHERE id_Sector = {id_sector} AND orden_compra = '{orden_compra}' AND Activo = 1;
+            WHERE id_Sector = {id_sector} AND orden_compra = '{orden_compra}' AND tipo_equipo = '{equipo}' AND Activo = 1;
 
             -- Cantidad total autorizada
             SELECT @total = cantidad_horas
             FROM HORAS_GRUA_ORDEN_COMPRA
-            WHERE id_Sector = {id_sector} AND orden_compra = '{orden_compra}' AND Activo = 1;
+            WHERE id_Sector = {id_sector} AND orden_compra = '{orden_compra}' AND tipo_equipo = '{equipo}' AND Activo = 1;
 
             -- Calcular proporción
             IF @total IS NOT NULL AND @total <> 0
@@ -542,58 +577,181 @@ def horas_para_grafico(id_sector, orden_compra,datos):
         return None
     
 
-def validacion_(id_sector,orden_compra):
+def completado_orden(orden_compra,equipo):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
         f"""
-        DECLARE @suma DECIMAL(10,2);
-        DECLARE @total DECIMAL(10,2);
-        DECLARE @resultado DECIMAL(10,4);
-        DECLARE @disponible DECIMAL(10,2);
-        DECLARE @horas INT;
-        DECLARE @minutos INT;
-        DECLARE @hhmm VARCHAR(10);
-
-        -- Sumar las horas utilizadas (convertidas a decimal)
-        SELECT @suma = SUM(DATEDIFF(MINUTE, CAST('00:00' AS TIME), cantidad_utilizada)) / 60.0
-        FROM HORAS_GRUA
-        WHERE id_Sector = {id_sector} AND orden_compra = '{orden_compra}' AND Activo = 1;
-
-        -- Cantidad total autorizada
-        SELECT @total = cantidad_horas
-        FROM HORAS_GRUA_ORDEN_COMPRA
-        WHERE id_Sector = {id_sector} AND orden_compra = '{orden_compra}' AND Activo = 1;
-
-        -- Calcular proporción
-        IF @total IS NOT NULL AND @total <> 0
-            SET @resultado = @suma / @total;
-        ELSE
-            SET @resultado = 0;
-
-        -- Disponible en decimal
-        SET @disponible = ISNULL(@total,0) - ISNULL(@suma,0);
-
-        -- Convertir disponible a HH:MM
-        SET @horas = FLOOR(@disponible);
-        SET @minutos = ROUND((@disponible - @horas) * 60,0);
-        SET @hhmm = CONCAT(@horas, ':', RIGHT('0' + CAST(@minutos AS VARCHAR(2)), 2));
-
-        -- Mostrar resultados
-        SELECT 
-            ISNULL(@suma,0) AS Total_Usado,
-            ISNULL(@total,0) AS Total_Autorizado,
-            ISNULL(@resultado,0) AS Proporcion_Usado,
-            @disponible AS Disponible_Decimal,
-            @hhmm AS Disponible_HHMM;
+        select completado from HORAS_GRUA_evaluacion
+        where orden_info = '{orden_compra}' and tipo_equipo = '{equipo}'
         """
     )
     result = cursor.fetchone()
     conn.commit()
     conn.close()
-    return result.Disponible_HHMM
+    return result.completado
 
-def validacion_admin(orden_compra):
+def info_orden(orden_compra):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        f"""
+        select nombre_proveedor, horas_compra, orden_info from HORAS_GRUA_evaluacion
+        where orden_info = '{orden_compra}'
+        """
+    )
+    result = cursor.fetchone()
+    conn.commit()
+    conn.close()
+    return result
+
+#ME FALTA VER LO DEL EQUIPO QUE NO SE DE DONDE SACARLO POR QUE TIENE QUE SER ESPECIFICO EL QUE TRAE YA
+
+def actualizar_completado_orden(data):
+    conn = None
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        print('LOS DATOS QUE LLEGAN A ACTUALIZAR ORDEN SON ', data)
+
+        # Extraer la orden (antes usabas .spit en lugar de .split)
+        orden_info_raw = data.get("orden_info", "")
+        orden_num = orden_info_raw.split(' - ', 1)[0].strip()
+
+        # Preparar parámetros en el mismo orden de los placeholders "?"
+        params = (
+            data.get("servicio_tercerizado"),
+            data.get("disponible"),
+            data.get("sin_fallas"),
+            # convertir a int si la columna es numérica; si no, dejar como string
+            int(data.get("veces_no")) if str(data.get("veces_no")).isdigit() else data.get("veces_no"),
+            data.get("especificaciones"),
+            data.get("calificacion"),
+            data.get("observaciones"),
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            orden_num,
+            data.get("tipo_equipo")
+        )
+
+        sql = """
+        UPDATE HORAS_GRUA_evaluacion
+        SET servicio_tercerizado = ?,
+            disponible = ?,
+            sin_fallas = ?,
+            veces_no = ?,
+            especificaciones = ?,
+            calificacion = ?,
+            observaciones = ?,
+            fecha_completado = ?,
+            completado = 'SI'
+        WHERE orden_info = ? AND tipo_equipo = ?
+        """
+
+        cursor.execute(sql, params)
+        conn.commit()
+
+        # Opcional: comprobar filas afectadas
+        if cursor.rowcount == 0:
+            print("ATENCIÓN: la actualización no afectó filas. Verifica orden_info/tipo_equipo.")
+            return False
+
+        return True
+
+    except Exception as e:
+        # Aquí podrías usar logging en vez de print
+        print("ERROR al actualizar orden:", type(e).__name__, e)
+        if conn:
+            conn.rollback()
+        return False
+
+    finally:
+        if conn:
+            conn.close()
+            
+def validacion_(id_sector, orden_compra):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    es_admin = obtener_rol() == "admin"
+
+    sql = """
+    DECLARE @suma DECIMAL(10,2);
+    DECLARE @total DECIMAL(10,2);
+    DECLARE @resultado DECIMAL(10,4);
+    DECLARE @disponible DECIMAL(10,2);
+    DECLARE @horas INT;
+    DECLARE @minutos INT;
+    DECLARE @hhmm VARCHAR(10);
+
+    -- Sumar horas utilizadas
+    SELECT @suma =
+        SUM(DATEDIFF(MINUTE, '00:00', cantidad_utilizada)) / 60.0
+    FROM HORAS_GRUA
+    WHERE orden_compra = ?
+      AND Activo = 1
+    """
+
+    params = [orden_compra]
+
+    if not es_admin:
+        sql += " AND id_Sector = ?"
+        params.append(id_sector)
+
+    sql += """
+
+    -- Total autorizado
+    SELECT @total = cantidad_horas
+    FROM HORAS_GRUA_ORDEN_COMPRA
+    WHERE orden_compra = ?
+      AND Activo = 1
+    """
+
+    params.append(orden_compra)
+
+    if not es_admin:
+        sql += " AND id_Sector = ?"
+        params.append(id_sector)
+
+    sql += """
+
+    -- Proporción
+    IF @total IS NOT NULL AND @total <> 0
+        SET @resultado = @suma / @total;
+    ELSE
+        SET @resultado = 0;
+
+    -- Disponible
+    SET @disponible = ISNULL(@total,0) - ISNULL(@suma,0);
+
+    -- Convertir a HH:MM seguro
+    SET @horas = FLOOR(@disponible);
+    SET @minutos = FLOOR((@disponible - @horas) * 60);
+
+    IF @minutos = 60
+    BEGIN
+        SET @horas = @horas + 1;
+        SET @minutos = 0;
+    END
+
+    SET @hhmm = CONCAT(@horas, ':', RIGHT('0' + CAST(@minutos AS VARCHAR(2)), 2));
+
+    SELECT
+        ISNULL(@suma,0) AS Total_Usado,
+        ISNULL(@total,0) AS Total_Autorizado,
+        ISNULL(@resultado,0) AS Proporcion_Usado,
+        @disponible AS Disponible_Decimal,
+        @hhmm AS Disponible_HHMM;
+    """
+
+    cursor.execute(sql, params)
+    row = cursor.fetchone()
+
+    conn.close()
+
+    return row.Disponible_HHMM if row else "0:00"
+
+
+def validacion_admin(orden_compra,equipo):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
@@ -609,12 +767,12 @@ def validacion_admin(orden_compra):
         -- Sumar las horas utilizadas (convertidas a decimal)
         SELECT @suma = SUM(DATEDIFF(MINUTE, CAST('00:00' AS TIME), cantidad_utilizada)) / 60.0
         FROM HORAS_GRUA
-        WHERE  orden_compra = '{orden_compra}' AND Activo = 1;
+        WHERE  orden_compra = '{orden_compra}' AND Activo = 1 AND tipo_equipo = '{equipo}';
 
         -- Cantidad total autorizada
         SELECT @total = cantidad_horas
         FROM HORAS_GRUA_ORDEN_COMPRA
-        WHERE  orden_compra = '{orden_compra}' AND Activo = 1;
+        WHERE  orden_compra = '{orden_compra}' AND Activo = 1 AND tipo_equipo = '{equipo}';
 
         -- Calcular proporción
         IF @total IS NOT NULL AND @total <> 0
@@ -649,62 +807,99 @@ def validar_horas_disponibles(id_sector, orden_compra,datos):
     """"
     Verificar sino se ha pasado del 70% de horas disponibles
     """
+    equipo = datos['TIPO_EQUIPO']
     def validacion():
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute(
-            f"""
-            DECLARE @suma DECIMAL(10,2);
-            DECLARE @total DECIMAL(10,2);
-            DECLARE @resultado DECIMAL(10,4);
-            DECLARE @disponible DECIMAL(10,2);
-            DECLARE @horas INT;
-            DECLARE @minutos INT;
-            DECLARE @hhmm VARCHAR(10);
 
-            -- Sumar las horas utilizadas (convertidas a decimal)
-            SELECT @suma = SUM(DATEDIFF(MINUTE, CAST('00:00' AS TIME), cantidad_utilizada)) / 60.0
-            FROM HORAS_GRUA
-            WHERE id_Sector = {id_sector} AND orden_compra = '{orden_compra}' AND Activo = 1;
+        es_admin = obtener_rol() == 'admin'
 
-            -- Cantidad total autorizada
-            SELECT @total = cantidad_horas
-            FROM HORAS_GRUA_ORDEN_COMPRA
-            WHERE id_Sector = {id_sector} AND orden_compra = '{orden_compra}' AND Activo = 1;
+        sql = """
+        DECLARE @suma DECIMAL(10,2);
+        DECLARE @total DECIMAL(10,2);
+        DECLARE @resultado DECIMAL(10,4);
+        DECLARE @disponible DECIMAL(10,2);
+        DECLARE @horas INT;
+        DECLARE @minutos INT;
+        DECLARE @hhmm VARCHAR(10);
 
-            -- Calcular proporción
-            IF @total IS NOT NULL AND @total <> 0
-                SET @resultado = @suma / @total;
-            ELSE
-                SET @resultado = 0;
+        SELECT @suma =
+            SUM(DATEDIFF(MINUTE, '00:00', cantidad_utilizada)) / 60.0
+        FROM HORAS_GRUA
+        WHERE orden_compra = ?
+        AND tipo_equipo = ?
+        AND Activo = 1
+        """
 
-            -- Disponible en decimal
-            SET @disponible = ISNULL(@total,0) - ISNULL(@suma,0);
+        params = [orden_compra, equipo]
 
-            -- Convertir disponible a HH:MM
-            SET @horas = FLOOR(@disponible);
-            SET @minutos = ROUND((@disponible - @horas) * 60,0);
-            SET @hhmm = CONCAT(@horas, ':', RIGHT('0' + CAST(@minutos AS VARCHAR(2)), 2));
+        if not es_admin:
+            sql += " AND id_Sector = ?"
+            params.append(id_sector)
 
-            -- Mostrar resultados
-            SELECT 
-                ISNULL(@suma,0) AS Total_Usado,
-                ISNULL(@total,0) AS Total_Autorizado,
-                ISNULL(@resultado,0) AS Proporcion_Usado,
-                @disponible AS Disponible_Decimal,
-                @hhmm AS Disponible_HHMM;
-            """
-        )
+        sql += """
+
+        SELECT @total = cantidad_horas
+        FROM HORAS_GRUA_ORDEN_COMPRA
+        WHERE orden_compra = ?
+        AND tipo_equipo = ?
+        AND Activo = 1
+        """
+
+        params.extend([orden_compra, equipo])
+
+        if not es_admin:
+            sql += " AND id_Sector = ?"
+            params.append(id_sector)
+
+        sql += """
+
+        IF @total IS NOT NULL AND @total <> 0
+            SET @resultado = @suma / @total;
+        ELSE
+            SET @resultado = 0;
+
+        SET @disponible = ISNULL(@total,0) - ISNULL(@suma,0);
+
+        SET @horas = FLOOR(@disponible);
+        SET @minutos = FLOOR((@disponible - @horas) * 60);
+
+        IF @minutos = 60
+        BEGIN
+            SET @horas = @horas + 1;
+            SET @minutos = 0;
+        END
+
+        SET @hhmm = CONCAT(@horas, ':', RIGHT('0' + CAST(@minutos AS VARCHAR(2)), 2));
+
+        SELECT
+            ISNULL(@suma,0) AS Total_Usado,
+            ISNULL(@total,0) AS Total_Autorizado,
+            ISNULL(@resultado,0) AS Proporcion_Usado,
+            @disponible AS Disponible_Decimal,
+            @hhmm AS Disponible_HHMM;
+        """
+
+        cursor.execute(sql, params)
         result = cursor.fetchone()
-        conn.commit()
+
         conn.close()
         return result
 
     try:
         resultado = validacion()
+        completo = completado_orden(orden_compra,equipo)
+        proporcion = float(resultado.Proporcion_Usado)
         print("Resultado de la validación:", resultado)
+        print("Proporción usada:", proporcion)
+        print("Completado orden:", completo)
+        
+        if proporcion >=0.7 and completo == 'NO':
+            messagebox.showerror("Error", "Debe completar la evaluación de la orden de compra antes de registrar más horas.")
+            return ['completar','insertar_datos']
+        
+        
         if resultado and resultado.Proporcion_Usado is not None:
-            proporcion = float(resultado.Proporcion_Usado)
             print(f"Proporción usada: {proporcion:.4f}")
             if proporcion > 1:
                 messagebox.showerror("Error", "Ha excedido las horas disponibles en este sector y orden de compra. No se puede registrar más horas.")
@@ -718,29 +913,30 @@ def validar_horas_disponibles(id_sector, orden_compra,datos):
                 return False
             if proporcion >= 0.7 and int(proporcion) <1:
                 if insertar_hora_grua(datos): 
-                    print("Registro insertado, verificando correo..."  )           
-                    if correo_enviado(id_sector, orden_compra):
-                        resultado = validacion()
-                        print('el resultaod es',resultado)
-                        messagebox.showinfo(
-                            "Éxito",
-                            f"✅ Registro guardado correctamente! "
-                            f"Quedan menos del 70% de horas disponibles ({resultado.Disponible_HHMM} h) "
-                            f"para la orden de compra {orden_compra}. "
-                            f"El correo de notificación ya se ha enviado para esta orden."
-                        )
-                        if resultado.Proporcion_Usado == 1:
-                            messagebox.showwarning("Advertencia","Ha alcanzado el 100% de las horas disponibles en este sector y orden de compra. No se pueden registrar más horas.")
-                        return False
-                    else:
-                        resultado = validacion()
-                        print(f'voy a enviar correo nuevo {resultado}')
-                        messagebox.showinfo(
-                            "Éxito",
-                            f"✅ Registro guardado correctamente! ")
-                        messagebox.showinfo("Aviso", "Ha alcanzado el 70% de las horas disponibles en este sector y orden de compra. Se enviará un correo de notificación.")
-                        insertado = insertar_correo(id_sector, orden_compra)
-                        return insertado
+                    # print("Registro insertado, verificando correo..."  )           
+                    # if correo_enviado(id_sector, orden_compra,equipo):
+                    #     resultado = validacion()
+                    #     print('el resultaod es',resultado)
+                    resultado = validacion()
+                    messagebox.showinfo(
+                        "Éxito",
+                        f"✅ Registro guardado correctamente! "
+                        f"Quedan menos del 70% de horas disponibles ({resultado.Disponible_HHMM} h) "
+                        f"para la orden de compra {orden_compra}-{equipo}. "
+                        f"El correo de notificación ya se ha enviado para esta orden."
+                    )
+                    if resultado.Proporcion_Usado == 1:
+                        messagebox.showwarning("Advertencia","Ha alcanzado el 100% de las horas disponibles en este sector y orden de compra. No se pueden registrar más horas.")
+                    return False
+                    # else:
+                    #     resultado = validacion()
+                    #     print(f'voy a enviar correo nuevo {resultado}')
+                    #     messagebox.showinfo(
+                    #         "Éxito",
+                    #         f"✅ Registro guardado correctamente! ")
+                    #     messagebox.showinfo("Aviso", "Ha alcanzado el 70% de las horas disponibles en este sector y orden de compra. Se enviará un correo de notificación.")
+                    #     insertado = insertar_correo(id_sector, orden_compra,equipo)
+                    #     return insertado
             if proporcion < 0.7:
                 if insertar_hora_grua(datos):
                     resultado = validacion()
@@ -751,16 +947,19 @@ def validar_horas_disponibles(id_sector, orden_compra,datos):
                         f"Quedan {resultado.Disponible_HHMM} h disponibles para la orden de compra {orden_compra}."
                     )
                     if resultado.Proporcion_Usado >= 0.7:
-                        if correo_enviado(id_sector, orden_compra):
-                            messagebox.showinfo("Aviso", "Quedan menos del 70% de horas disponibles, el correo de notificación ya se ha enviado para esta orden.")
-                            if resultado.Proporcion_Usado == 1:
-                                messagebox.showwarning("Advertencia","Ha alcanzado el 100% de las horas disponibles en este sector y orden de compra. No se pueden registrar más horas.")
-                            return False
-                        else:
-                            messagebox.showwarning("Advertencia", "⚠️ Ha alcanzado el 70% de las horas disponibles en este sector y orden de compra. Se enviará un correo de notificación.")
-                            insertado = insertar_correo(id_sector, orden_compra)
-                            print('el insertado es',insertado)
-                        return insertado
+                        return ['validar_correo',resultado]
+                        # if correo_enviado(id_sector, orden_compra,equipo):
+                        #     messagebox.showinfo("Aviso", "Quedan menos del 70% de horas disponibles, el correo de notificación ya se ha enviado para esta orden.")
+                        #     if resultado.Proporcion_Usado == 1:
+                        #         messagebox.showwarning("Advertencia","Ha alcanzado el 100% de las horas disponibles en este sector y orden de compra. No se pueden registrar más horas.")
+                        #     return False
+                        # else:
+                        #     messagebox.showwarning("Advertencia", "⚠️ Ha alcanzado el 70% de las horas disponibles en este sector y orden de compra. Se enviará un correo de notificación.")
+                        #     #insertado = insertar_correo(id_sector, orden_compra,equipo)
+                        #     #print('el insertado es',insertado)
+                        #     return True
+                    else:
+                        return False
             else:
                 if resultado.Proporcion_Usado == 1:
                     messagebox.showwarning("Advertencia","Ha alcanzado el 100% de las horas disponibles en este sector y orden de compra. No se pueden registrar más horas.")
@@ -769,13 +968,13 @@ def validar_horas_disponibles(id_sector, orden_compra,datos):
         messagebox.showerror("Error", f"No se pudo validar las horas disponibles:\n{str(e)}")
         return False
     
-def correo_enviado(id_sector, orden_compra):
+def correo_enviado(id_sector, orden_compra,equipo):
     try:
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute(
             f"""
-            SELECT * FROM HORAS_GRUA_CORREO WHERE id_Sector = {id_sector}  and orden_compra = {orden_compra}
+            SELECT * FROM HORAS_GRUA_CORREO WHERE id_Sector = {id_sector}  and orden_compra = {orden_compra} and tipo_equipo = '{equipo}'
             """
         )
         result = cursor.fetchone()
@@ -786,25 +985,26 @@ def correo_enviado(id_sector, orden_compra):
         
         
         if result:
-            print(f"Correo marcado como enviado para sector {id_sector} y orden {orden_compra}.")
+            print(f"Correo marcado como enviado para sector {id_sector} y orden {orden_compra} - {equipo}.")
             return True  # Ya se envió correo
         else:
-            print('el cr¿orreo no ha sido enviado')
+            print('el correo no ha sido enviado')
             return False  # No se ha enviado correo
     except Exception as e:
         print("Error al validar si ya se envió correo:", e)
 
-def insertar_correo(id_sector, orden_compra):
+def insertar_correo(id_sector, orden_compra,equipo):
     try:
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute(
             f"""
-            INSERT INTO HORAS_GRUA_CORREO (ID_SECTOR, ORDEN_COMPRA, CORREO) 
-            VALUES (?, ?, 1)
+            INSERT INTO HORAS_GRUA_CORREO (ID_SECTOR, ORDEN_COMPRA, CORREO,tipo_equipo) 
+            VALUES (?, ?, 1,?)
             """,
             id_sector,
-            orden_compra
+            orden_compra,
+            equipo
         )
         conn.commit()
         conn.close()
@@ -828,28 +1028,41 @@ def sector_id(id):
 # -----------------------------------------------------------
 # OBTENER ORDEN DE COMPRA POR SECTOR
 # -----------------------------------------------------------
+import pandas as pd
 def obtener_orden_compra(id_sector):
     try:
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("""
-            SELECT orden_compra
-            FROM horas_grua_orden_compra
-            WHERE id_sector = ?
-            and activo = 1
-        """, (id_sector,))
+        rol = obtener_rol()
+        if rol == 'admin':
+            print('es admin')
+            cursor.execute("""
+                SELECT orden_compra,tipo_equipo
+                FROM horas_grua_orden_compra
+                WHERE activo = 1
+            """)
+        else:
+            cursor.execute("""
+                SELECT orden_compra,tipo_equipo
+                FROM horas_grua_orden_compra
+                WHERE id_sector = ?
+                and activo = 1
+            """, (id_sector,))
         rows = cursor.fetchall()
         conn.close()
-
+        print('las rows son',rows)
         # Convertimos en lista simple (no diccionarios)
-        data = [row[0] for row in rows]
-        return data
+        data = [{"orden_compra": row[0], "tipo_equipo": row[1]} for row in rows]
+        df = pd.DataFrame(data)
+        return df
 
     except Exception as e:
         print("Error obteniendo orden de compra:", e)
         return []
 
 
+# d = obtener_orden_compra(2)
+# print(d['orden_compra'].tolist())
 def obtener_orden_compra_completo():
     try:
         conn = get_connection()

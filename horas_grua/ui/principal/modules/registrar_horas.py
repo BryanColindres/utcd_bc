@@ -10,7 +10,7 @@ from .ficha_evaluacion_grua import EvaluacionProveedorModal
 
 # Ajustar path para importar db_controller
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
-from db_controller import insertar_hora_grua,validar_horas_disponibles,obtener_orden_compra,correo_enviado,obtener_sectores,obtener_id_sector,validacion_,obtener_rol,obtener_orden_compra_completo,validacion_admin
+from db_controller import insertar_hora_grua,validar_horas_disponibles,obtener_orden_compra,correo_enviado,obtener_sectores,obtener_id_sector,validacion_,obtener_rol,obtener_orden_compra_completo,validacion_admin,info_orden,insertar_correo,completado_orden
 
 class RegistrarHoras(ctk.CTkFrame):
     
@@ -74,7 +74,7 @@ class RegistrarHoras(ctk.CTkFrame):
 
         # ORDEN COMPRA
         ctk.CTkLabel(form_frame, text="ORDEN DE COMPRA:", font=("TT NORMS PRO",14,"bold"),text_color="#87898F").grid(row=9, column=0, sticky="e", padx=10, pady=8)
-        self.orden_entry = ctk.CTkComboBox(form_frame, values=self.ordenes_compras_(), width=250, fg_color="#EFEFEF",text_color="#87898F",state="readonly")
+        self.orden_entry = ctk.CTkComboBox(form_frame, values=self.ordenes_compras_(), width=280, fg_color="#EFEFEF",text_color="#87898F",state="readonly")
         self.orden_entry.grid(row=9, column=1, columnspan=2, sticky="w", padx=10, pady=8)
 
         # BOTONES
@@ -85,30 +85,50 @@ class RegistrarHoras(ctk.CTkFrame):
 
         
     def ordenes_compras_(self):
-        print("Sector ID en registrar horas:",self.id_sector)
-        
-        # if self.rol == 'admin':
-        #     self.ordenes = obtener_orden_compra_completo()
-        # else:
-        #     self.ordenes = obtener_orden_compra(self.id_sector)
-        self.ordenes = obtener_orden_compra(self.id_sector)
-        print('ORDENES A MOSRTRAR',self.ordenes)
+        print("Sector ID en registrar horas:", self.id_sector)
+
+        # Obtener data
+        self.data = obtener_orden_compra(self.id_sector)
+
+        # Validar si es None o está vacío
+        if self.data is None or len(self.data) == 0:
+            print("No existen órdenes de compra para este sector.")
+            return ["SIN ÓRDENES DISPONIBLES"]
+
+        # Validar si las columnas existen
+        required_cols = {"orden_compra", "tipo_equipo"}
+        if not required_cols.issubset(set(self.data.columns)):
+            print("ERROR: La consulta no devolvió las columnas necesarias:", self.data.columns)
+            return ["ERROR: Datos incompletos"]
+
+        # Convertir datos a listas
+        self.ordenes = self.data["orden_compra"].astype(str).tolist()
+        self.tipo_equipo = self.data["tipo_equipo"].astype(str).tolist()
+
+        print("Órdenes a mostrar:", self.ordenes)
+
         x = []
-        for orden in self.ordenes:
-            val = validacion_admin(orden)
-            c = f'{orden} - Disponible: {val}'
+        for i in range(len(self.data)):
+            orden = self.ordenes[i]
+            equipo = self.tipo_equipo[i]
+            try:
+                val = validacion_admin(orden, equipo)
+            except Exception as e:
+                print(f"Error validando orden {orden}: {e}")
+                val = "N/D"
+
+            c = f"{orden} - Equipo: {equipo} - Disponible: {val}"
             x.append(c)
-        print(f'hola las x son {x}')
+
         return x
 
     # ---------------- FUNCIONES ----------------
 
-    def abrir_modal_evaluacion(self):
+    def abrir_modal_evaluacion(self, orden, proveedor, horas,equipo):
         def recibir(data):
             print("Datos recibidos de evaluación:", data)
-            # Aquí luego guardas en BD o exportas PDF
+        EvaluacionProveedorModal(self, orden, proveedor, horas,equipo, callback=recibir)
 
-        EvaluacionProveedorModal(self, callback=recibir)
     def abrir_calendario(self):
         # Crear ventana emergente
         top = Toplevel(self)
@@ -250,6 +270,7 @@ class RegistrarHoras(ctk.CTkFrame):
         # Si todo está bien, continuar con validación de horas disponibles
         orden_completa = self.orden_entry.get()
         orden_solo = orden_completa.split(" - ")[0]  # toma solo '1531535'
+        equipo = orden_completa.split(" - ")[1].replace("Equipo: ","")  # toma solo 'Camión Grúa'
         datos = {
             "FECHA_UTILIZACION": self.fecha_entry.get(),
             "SERVICIO_UTILIZADO": "1. Horas de grúa",
@@ -260,21 +281,136 @@ class RegistrarHoras(ctk.CTkFrame):
             "JUSTIFICACION": self.just_entry.get("1.0","end-1c"),
             "RESPONSABLE": self.resp_entry.get(),
             "ORDEN_COMPRA": orden_solo,
-            "ID_SECTOR": self.id_sector
+            "ID_SECTOR": self.id_sector,
+            "TIPO_EQUIPO": equipo
         }
-
+        
+        informacion = info_orden(orden_solo)
+        nombre_proveedor = informacion.nombre_proveedor
+        horas_compra = informacion.horas_compra
+        
         try:
             validacion = validar_horas_disponibles(id_sector=self.id_sector, orden_compra=orden_solo, datos=datos)
-            self.abrir_modal_evaluacion()
-            if validacion:
+            if validacion is False:
+                return
+            if validacion[0] == 'completar':
+                bandera_insercion = validacion[1]
+                self.completar_evaluacion(orden_solo, nombre_proveedor, horas_compra,equipo, datos,bandera_insercion)
+                return
+            if validacion[0] == 'validar_correo':
                 try:
-                    if envia_correo(sector=self.id_sector, orden_compra=orden_solo):
-                        messagebox.showinfo("Éxito", "Correo enviado correctamente.")
-                except:
-                    messagebox.showerror("Error", "No se pudo enviar el correo, por favor contacte al administrador.")
+                    resultado = validacion[1]
+                    if correo_enviado(self.id_sector, orden_solo,equipo):
+                        messagebox.showinfo("Aviso", "Quedan menos del 70% de horas disponibles, el correo de notificación ya se ha enviado para esta orden.")
+                        if resultado.Proporcion_Usado == 1:
+                            messagebox.showwarning("Advertencia","Ha alcanzado el 100% de las horas disponibles en este sector y orden de compra. No se pueden registrar más horas.")
+                        return 
+                    else:
+                        messagebox.showwarning("Advertencia", "⚠️ Ha alcanzado el 70% de las horas disponibles en este sector y orden de compra. Debes completar la evaluación para mandar correo de alerta.")
+                        #insertado = insertar_correo(id_sector, orden_compra,equipo)
+                        #print('el insertado es',insertado)
+                        print('antes de verificar completo')
+                        completo = completado_orden(orden_solo,equipo)
+                        if completo == 'NO':
+                            print('abrir modal')
+                            self.completar_evaluacion(orden_solo, nombre_proveedor, horas_compra,equipo, datos,bandera='no_insertar')
+                            return
+                except Exception as e:
+                    print(f"[guardar_registro] Error verificando correo_enviado: {e}")
+            elif validacion:
+                # Antes de llamar a envia_correo sin adjunto, confirmar que el correo
+                # no haya sido ya enviado o marcado como pendiente por validar_horas_disponibles.
+                try:
+                    ya_enviado = correo_enviado(self.id_sector, orden_solo, equipo)
+                except Exception as e_ce:
+                    print(f"[guardar_registro] Error verificando correo_enviado: {e_ce}")
+                    # Por seguridad asumimos que NO se ha enviado para intentar el envío
+                    ya_enviado = False
+
+                if ya_enviado:
+                    # Si ya se envió previamente, informar y no volver a enviar
+                    return
+                    #messagebox.showinfo("Información", "Notificación sobre horas ya fue enviada previamente para esta orden.")
+                else:
+                    try:
+                        enviado_ok = envia_correo(sector=self.id_sector, orden_compra=orden_solo)
+                        if enviado_ok:
+                            messagebox.showinfo("Éxito", "Correo enviado correctamente.")
+                        else:
+                            messagebox.showwarning("Aviso", "No se pudo enviar el correo. Verifique la configuración.")
+                    except Exception as e_send:
+                        print(f"[guardar_registro] Error enviando correo: {e_send}")
+                        messagebox.showerror("Error", "No se pudo enviar el correo, por favor contacte al administrador.")
+
             self.ordenes_compras_()
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo guardar el registro:\n{str(e)}")
+
+
+
+    def completar_evaluacion(self,orden_solo, nombre_proveedor, horas_compra,equipo, datos,bandera):
+        # Abrir modal y esperar hasta que el usuario lo cierre.
+        # Guardamos el resultado en self.modal_result vía callback.
+        self.modal_result = None
+
+        def recibir(result):
+            """
+            result: dict esperado:
+                {'datos': {...}, 'archivo': '/ruta/al/archivo.docx' or None, 'actualizado': True/False}
+            """
+            print("Callback modal recibió:", result)
+            self.modal_result = result
+
+        modal = EvaluacionProveedorModal(self, orden_solo, nombre_proveedor, horas_compra, equipo, callback=recibir)
+        self.wait_window(modal)  # Espera hasta que el modal se cierre
+
+        # Después del cierre del modal: revisamos self.modal_result
+        mr = getattr(self, "modal_result", None)
+
+        # Si no devolvió nada o archivo es None → el usuario no completó la evaluación
+        if not mr or not mr.get("archivo") or not mr.get("actualizado"):
+            # No permitir registrar más horas hasta que complete la evaluación
+            messagebox.showwarning("Atención", "La evaluación no fue completada o no se guardó correctamente. No se puede registrar más horas hasta completar la evaluación y no se enviará correo de alerta.")
+            return
+
+        # Si llegamos aquí: el modal devolvió archivo y la orden fue marcada como completada.
+        archivo_eval = mr.get("archivo")
+
+        # # Antes de enviar: comprobar si ya se envió correo (evita duplicados)
+        # try:
+        #     ya_enviado = correo_enviado(self.id_sector, orden_solo, equipo)
+        # except Exception as e_ce:
+        #     print(f"[guardar_registro] Error verificando correo_enviado: {e_ce}")
+        #     ya_enviado = False
+
+        # if ya_enviado:
+        #     messagebox.showinfo("Información", "La evaluación fue completada y el correo ya se había enviado anteriormente.")
+        #     # No reenvíes; si quieres forzar reenvío, ajusta aquí.
+        # else:
+            # Enviar correo adjuntando el docx generado por el modal
+        try:
+            enviado_ok = envia_correo(sector=self.id_sector, orden_compra=orden_solo, attachment_path=archivo_eval)
+            if enviado_ok:
+                insertar_correo(self.id_sector, orden_solo,equipo)
+                messagebox.showinfo("Éxito", "Correo con evaluación enviado correctamente.")
+            else:
+                messagebox.showwarning("Aviso", "No se pudo enviar el correo con evaluación. Favor verificar configuración.")
+        except Exception as e_send:
+            messagebox.showerror("Error", f"No se pudo enviar el correo: {e_send}")
+
+        # Finalmente, si deseas que tras completar y enviar se inserte la hora automáticamente,
+        # puedes re-invocar el proceso de inserción aquí. En tu lógica previa, cuando la validación fue 'completar'
+        # no insertabas automáticamente; si quieres insertar la hora ya (porque ya completó evaluación), haz:
+        if bandera == 'insertar_datos':
+            insertar_hora_grua(datos)
+        # if insertar:
+        #     print("Registro guardado correctamente después de completar evaluación.")
+        
+        #if insertar: messagebox.showinfo("Éxito", "Registro guardado correctamente después de completar evaluación.")
+        # En mi propuesta dejo esa decisión explícita: no inserto automáticamente para respetar tu lógica original.
+        # Si quieres que inserte, descomenta las 2 líneas previas.
+
+
 
     def borrar_todo(self):
         self.fecha_entry.delete(0,"end")
@@ -287,4 +423,6 @@ class RegistrarHoras(ctk.CTkFrame):
         self.resp_entry.set("")
         self.orden_entry.set("")
         self.ordenes_compras_()
+        
+
 

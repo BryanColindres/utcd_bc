@@ -57,7 +57,7 @@ class AcercaDe(ctk.CTkFrame):
         
         ctk.CTkLabel(
             info_frame,
-            text="Para soporte contactar a: bryan.colindres@eneeutcd.hn, cristian.umanzor@eneeutcd.hn, ruben.ayestas@eneeutcd.hn ",
+            text="Para soporte contactar a: bryan.colindres@eneeutcd.hn, cristian.umanzor@eneeutcd.hn, laura.mungia@eneeutcd.hn ",
             font=("Poppins", 12),
             text_color="#555555"
         ).pack(pady=5)
