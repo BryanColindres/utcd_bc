@@ -162,6 +162,7 @@ def obtener_horas_grua_completo():
                     ,[JUSTIFICACION]
                     ,[RESPONSABLE]
                     ,[ORDEN_COMPRA]
+                    ,tipo_equipo
                     ,[id_Sector]
                     --,[Activo]
                 FROM Horas_Grua WHERE ACTIVO = 1
@@ -191,8 +192,9 @@ def obtener_horas_grua(id_sector):
                 [JUSTIFICACION],
                 [RESPONSABLE],
                 [ORDEN_COMPRA],
-                [Activo],
-                [id_Sector]
+                --[Activo],
+                --[id_Sector],
+                tipo_equipo
             FROM Horas_Grua
             WHERE ACTIVO = 1 AND id_sector = ?
         """, (id_sector,))
@@ -267,7 +269,7 @@ def obtener_sectores():
 # x = obtener_sectores()
 # print(x)
 # ---------------- Actualizar un registro ----------------
-def actualizar_horas_grua(FECHA_UTILIZACION, HORA_DE_INICIO,CANTIDAD_UTILIZADA,HORA_FINAL,JUSTIFICACION,RESPONSABLE,ORDEN_COMPRA,id):
+def actualizar_horas_grua(FECHA_UTILIZACION, HORA_DE_INICIO,CANTIDAD_UTILIZADA,HORA_FINAL,JUSTIFICACION,RESPONSABLE,ORDEN_COMPRA,TIPO_EQUIPO,id):
     fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     usuario = get_usuario_actual()
     concatenacion = f'Usuario: {usuario} -  {fecha}'
@@ -277,8 +279,8 @@ def actualizar_horas_grua(FECHA_UTILIZACION, HORA_DE_INICIO,CANTIDAD_UTILIZADA,H
             conn = get_connection()
             cursor = conn.cursor()
             cursor.execute(
-                "UPDATE horas_grua SET FECHA_UTILIZACION = ?, HORA_DE_INICIO = ?, CANTIDAD_UTILIZADA =?,HORA_FINAL = ?,JUSTIFICACION=?,RESPONSABLE=?,orden_compra = ?,USUARIO_ACTUALIZACION = ? WHERE id = ?",
-                FECHA_UTILIZACION, HORA_DE_INICIO,CANTIDAD_UTILIZADA,HORA_FINAL,JUSTIFICACION,RESPONSABLE,ORDEN_COMPRA,concatenacion,id
+                "UPDATE horas_grua SET FECHA_UTILIZACION = ?, HORA_DE_INICIO = ?, CANTIDAD_UTILIZADA =?,HORA_FINAL = ?,JUSTIFICACION=?,RESPONSABLE=?,orden_compra = ?,TIPO_EQUIPO=?,USUARIO_ACTUALIZACION = ? WHERE id = ?",
+                FECHA_UTILIZACION, HORA_DE_INICIO,CANTIDAD_UTILIZADA,HORA_FINAL,JUSTIFICACION,RESPONSABLE,ORDEN_COMPRA,TIPO_EQUIPO,concatenacion,id
             )
             conn.commit()
             conn.close()
@@ -604,6 +606,58 @@ def info_orden(orden_compra):
     conn.commit()
     conn.close()
     return result
+
+
+def obtener_proveedor_codigo(orden_compra,equipo):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        f"""
+        select proveedor from HORAS_GRUA_ORDEN_COMPRA
+        where orden_compra = '{orden_compra}'  and tipo_equipo = '{equipo}'
+        """
+    )
+    result = cursor.fetchone()
+    conn.commit()
+    conn.close()
+    if result:
+        return result.proveedor
+    else:
+        return None
+
+def obtener_datos_sectores(sector):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        f"""
+        select SUPERVISOR,CENTRO_COSTO,sector from HORAS_GRUA_SECTORES
+        where id_sector = '{sector}' 
+        """
+    )
+    result = cursor.fetchone()
+    conn.commit()
+    conn.close()
+    if not result:
+        return None, None, None
+
+    return result[0], result[1], result[2]
+
+def obtener_responsable_sector(sector):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        f"""
+        select RESPONSABLE from [HORAS_GRUA_RESPONSABLES_SECTORES]
+        where id_sector = '{sector}' 
+        """
+    )
+    rows  = cursor.fetchall()
+    conn.commit()
+    conn.close()
+    # 👇 CONVERSIÓN CLAVE
+    responsables = [str(row[0]) for row in rows]
+
+    return responsables
 
 #ME FALTA VER LO DEL EQUIPO QUE NO SE DE DONDE SACARLO POR QUE TIENE QUE SER ESPECIFICO EL QUE TRAE YA
 
@@ -1014,6 +1068,45 @@ def insertar_correo(id_sector, orden_compra,equipo):
         messagebox.showerror("Error", f"No se pudo registrar en la base de datos el correo:\n{str(e)}")
         return False
 
+
+    # ------------------- OBTENER CC PARA CORREO -------------
+def obtener_cc():
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    # 1. Agregamos comillas simples a 'Todos' porque es un valor de texto en SQL
+    query = "SELECT correo FROM Horas_grua_personas_correo WHERE sector = 'todos'"
+    
+    cursor.execute(query)
+    
+    # 2. Extraemos solo el string del correo de cada tupla en el resultado
+    # fetchall() devuelve una lista de tuplas como [('correo1@hn',), ('correo2@hn',)]
+    resultado = cursor.fetchall()
+    cc_correo = [fila[0] for fila in resultado]
+    
+    cursor.close()
+    conn.close()
+    
+    return cc_correo
+
+def obtener_correo(id):
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    # 1. Agregamos comillas simples a 'Todos' porque es un valor de texto en SQL
+    query = f"SELECT correo FROM Horas_grua_personas_correo WHERE id  = {id}"
+    
+    cursor.execute(query)
+    
+    # 2. Extraemos solo el string del correo de cada tupla en el resultado
+    # fetchall() devuelve una lista de tuplas como [('correo1@hn',), ('correo2@hn',)]
+    resultado = cursor.fetchall()
+    cc_correo = [fila[0] for fila in resultado]
+    
+    cursor.close()
+    conn.close()
+    
+    return cc_correo
     # ------------------- OBTENER SECTOR -------------------
 
 def sector_id(id):

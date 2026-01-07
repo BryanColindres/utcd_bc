@@ -3,7 +3,8 @@ from tkinter import ttk, messagebox, font as tkFont
 import sys, os
 from datetime import datetime
 from datetime import timedelta
-
+import requests
+from .subir_soporte import seleccionar_archivos,verificar_carpeta_sharepoint
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
 from db_controller import obtener_orden_compra_activos, eliminar_orden_compra,obtener_orden_compra_activos_todas_ordenes,actualizar_orden_compra,obtener_sectores
 
@@ -11,15 +12,45 @@ class Verorden(ctk.CTkFrame):
     def __init__(self, parent):
         super().__init__(parent, fg_color="white")
         self.sectores = obtener_sectores()
-        
+
         # crear dict inverso para obtener nombre a partir de id si es necesario
         self.sectores_id_a_nombre = {v: k for k, v in self.sectores.items()}
         # Variables para filtros
         self.active_filters = {}       # Guardará los filtros activos por columna
         self.filter_windows = {}       # Para no abrir varias ventanas del mismo filtro
 
+        hoy = datetime.now()
+        self.filtro_anio = ctk.StringVar(value=str(hoy.year))
+        self.filtro_mes = ctk.StringVar(value=f"{hoy.month:02d}")
+
+        
+
         # Título
         ctk.CTkLabel(self, text="Reportes de Uso de Grúa 📊", font=("Poppins", 22, "bold"), text_color="#E74C3C").pack(pady=(20,10))
+
+        filtros_frame = ctk.CTkFrame(self, fg_color="white")
+        filtros_frame.pack(fill="x", padx=20, pady=(0, 10))
+
+        ctk.CTkLabel(filtros_frame, text="Año").grid(row=0, column=0, padx=5)
+
+        self.combo_anio = ctk.CTkOptionMenu(
+            filtros_frame,
+            variable=self.filtro_anio,
+            values=["Todos"],  # se llena dinámicamente
+            command=lambda _: self.aplicar_filtro_activos()
+        )
+        self.combo_anio.grid(row=0, column=1, padx=5)
+
+        ctk.CTkLabel(filtros_frame, text="Mes").grid(row=0, column=2, padx=5)
+
+        self.combo_mes = ctk.CTkOptionMenu(
+            filtros_frame,
+            variable=self.filtro_mes,
+            values=["Todos"],
+            command=lambda _: self.aplicar_filtro_activos()
+        )
+        self.combo_mes.grid(row=0, column=3, padx=5)
+
 
         # Contenedor tabla
         table_container = ctk.CTkFrame(self, fg_color="white")
@@ -33,9 +64,12 @@ class Verorden(ctk.CTkFrame):
 
         # Columnas
         self.columns = [
-            "FECHA","ID_SECTOR","ORDEN_COMPRA","CANTIDAD_HORAS","TIPO_EQUIPO","activo"
+            "FECHA","ID_SECTOR","ORDEN_COMPRA","CANTIDAD_HORAS","TIPO_EQUIPO","activo","SOPORTE"
         ]
-        self.column_headers = ["FECHA","ID_SECTOR","ORDEN_COMPRA","CANTIDAD_HORAS","TIPO_EQUIPO","activo"]
+        self.column_headers = [
+        "FECHA","SECTOR","ORDEN COMPRA","CANTIDAD HORAS","TIPO EQUIPO","ACTIVO","SOPORTE"
+        ]
+
         self.columns_editables = ["FECHA","ID_SECTOR","ORDEN_COMPRA","CANTIDAD_HORAS","TIPO_EQUIPO","activo"]
 
         # Treeview
@@ -47,6 +81,7 @@ class Verorden(ctk.CTkFrame):
             yscrollcommand=self.v_scroll.set,
             xscrollcommand=self.h_scroll.set
         )
+        self.tree.bind("<Button-1>", self.on_tree_click)
         self.tree.pack(fill="both", expand=True)
         self.v_scroll.configure(command=self.tree.yview)
         self.h_scroll.configure(command=self.tree.xview)
@@ -90,13 +125,210 @@ class Verorden(ctk.CTkFrame):
         button_frame = ctk.CTkFrame(self, fg_color="white")
         button_frame.pack(pady=10)
         ctk.CTkButton(button_frame, text="🔄 Refrescar", fg_color="#3498DB", hover_color="#2980B9",
-                      command=self.cargar_tabla_).grid(row=0, column=0, padx=5)
-        ctk.CTkButton(button_frame, text="🗑️ Eliminar seleccionado", fg_color="#E74C3C", hover_color="#C0392B",
-                      command=self.eliminar_seleccion).grid(row=0, column=1, padx=5)
+                      command=self.refrescar_completo).grid(row=0, column=0, padx=5)
+        #ctk.CTkButton(button_frame, text="🗑️ Eliminar seleccionado", #fg_color="#E74C3C", hover_color="#C0392B",
+        #              command=self.eliminar_seleccion).grid(row=0, column=1, #padx=5)
         ctk.CTkButton(button_frame, text="✏️ Editar seleccionado", fg_color="#F39C12", hover_color="#D68910",
                       command=self.editar_seleccion).grid(row=0, column=2, padx=5)
 
         self.cargar_tabla()
+
+    def refrescar_completo(self):
+        self.active_filters.clear()
+        self.filtro_anio.set(str(datetime.now().year))
+        self.filtro_mes.set(f"{datetime.now().month:02d}")
+        self.cargar_tabla()
+
+
+    def on_tree_click(self, event):
+        region = self.tree.identify("region", event.x, event.y)
+        if region != "cell":
+            return
+
+        row_id = self.tree.identify_row(event.y)
+        col_id = self.tree.identify_column(event.x)
+
+        if not row_id:
+            return
+
+        col_index = int(col_id.replace("#", "")) - 1
+        if self.columns[col_index] != "SOPORTE":
+            return
+
+        valores = self.tree.item(row_id, "values")
+
+        fecha = valores[0]
+        sector = valores[1]
+        orden = valores[2]
+
+        self.gestionar_soporte(fecha, sector, orden)
+
+    def verificar_soporte_sharepoint(self, fecha, sector, orden):
+        FLOW_CHECK = "https://defaultc1b22713e01544978af7ac76803fda.c5.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/fbdc58d6b15147d28e350a0f39258773/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=HVYjKdrOY4p3aEgQOJYFyYIqlnPVlJUnkHLkI5Edeew"
+
+
+        MESES = {
+            "01": "ENERO", "02": "FEBRERO", "03": "MARZO", "04": "ABRIL",
+            "05": "MAYO", "06": "JUNIO", "07": "JULIO", "08": "AGOSTO",
+            "09": "SEPTIEMBRE", "10": "OCTUBRE", "11": "NOVIEMBRE", "12": "DICIEMBRE"
+        }
+
+        mes = MESES[fecha[5:7]]
+        payload = {
+            "carpeta_inicial": "HORAS_GRUA",
+            "sector": sector,
+            "mes": mes,
+            "carpeta_final": orden
+        }
+
+        try:
+            r = requests.post(FLOW_CHECK, json=payload, timeout=10)
+
+            # 👇 NO usar raise_for_status
+            if r.status_code != 200:
+                print("⚠️ Flow respondió:", r.status_code, r.text)
+                return False, None
+
+            data = r.json()
+
+            if not data.get("exists"):
+                return False, None
+
+            # 🔗 construir URL REAL de SharePoint
+            
+            link = data["url"]
+
+            return True, link
+
+        except Exception as e:
+            print("❌ Error consultando soporte:", e)
+            return False, None
+
+
+
+
+    def gestionar_soporte(self, fecha, sector, orden):
+        existe, link = self.verificar_soporte_sharepoint(fecha, sector, orden)
+
+        if existe:
+            import webbrowser
+            webbrowser.open(link)
+            return
+
+        resp = messagebox.askyesno(
+            "Soporte no encontrado",
+            f"No se encontró soporte para la orden {orden}.\n\n¿Desea subirlo ahora?"
+        )
+
+        if resp:
+            self.subir_soporte(sector, orden)
+
+
+    def pedir_fecha_soporte(self):
+        win = ctk.CTkToplevel(self)
+        win.title("Fecha del soporte")
+        win.geometry("300x160")
+        win.grab_set()
+
+        ctk.CTkLabel(
+            win,
+            text="Seleccione la fecha del soporte",
+            font=("Poppins", 13, "bold")
+        ).pack(pady=(15, 5))
+
+        fecha_var = ctk.StringVar(value=datetime.now().strftime("%Y-%m-%d"))
+
+        entry = ctk.CTkEntry(
+            win,
+            textvariable=fecha_var,
+            width=200
+        )
+        entry.pack(pady=10)
+
+        resultado = {"fecha": None}
+
+        def aceptar():
+            try:
+                datetime.strptime(fecha_var.get(), "%Y-%m-%d")
+                resultado["fecha"] = fecha_var.get()
+                win.destroy()
+            except ValueError:
+                messagebox.showerror(
+                    "Fecha inválida",
+                    "Formato correcto: YYYY-MM-DD"
+                )
+
+        ctk.CTkButton(
+            win,
+            text="Aceptar",
+            command=aceptar
+        ).pack(pady=10)
+
+        self.wait_window(win)
+        return resultado["fecha"]
+
+
+    def subir_soporte(self, sector, orden):
+
+        fecha = self.pedir_fecha_soporte()
+        if not fecha:
+            return
+        archivos = seleccionar_archivos()
+        if not archivos:
+            return
+
+
+        MESES = {
+            "01": "ENERO", "02": "FEBRERO", "03": "MARZO", "04": "ABRIL",
+            "05": "MAYO", "06": "JUNIO", "07": "JULIO", "08": "AGOSTO",
+            "09": "SEPTIEMBRE", "10": "OCTUBRE", "11": "NOVIEMBRE", "12": "DICIEMBRE"
+        }
+
+        mes = MESES[fecha[5:7]]
+        verificar_carpeta_sharepoint(
+            archivos,
+            carpeta_inicial="HORAS_GRUA",
+            sector=sector,
+            carpeta_mes=mes,
+            carpeta_nombre=orden
+        )
+
+
+    def actualizar_filtros_fecha(self, data):
+        fechas = []
+        idx_fecha = self.columns.index("FECHA")
+
+        for row in data:
+            try:
+                fechas.append(datetime.strptime(row[idx_fecha], "%Y-%m-%d"))
+            except:
+                continue
+
+        if not fechas:
+            return
+
+        anios = sorted({f.year for f in fechas})
+        meses = sorted({f.month for f in fechas})
+
+        self.combo_anio.configure(
+            values=["Todos"] + [str(a) for a in anios]
+        )
+
+        self.combo_mes.configure(
+            values=["Todos"] + [f"{m:02d}" for m in meses]
+        )
+
+        hoy = datetime.now()
+
+        self.filtro_anio.set(
+            str(hoy.year) if str(hoy.year) in self.combo_anio.cget("values") else "Todos"
+        )
+
+        mes_actual = f"{hoy.month:02d}"
+        self.filtro_mes.set(
+            mes_actual if mes_actual in self.combo_mes.cget("values") else "Todos"
+        )
+
 
     # ------------------- CARGAR TABLA -------------------
     def cargar_tabla_(self):
@@ -114,31 +346,49 @@ class Verorden(ctk.CTkFrame):
                 id_sector = row[1]
                 # Reemplazar por el nombre si existe
                 row[1] = sectores_id_a_nombre.get(id_sector, f"ID {id_sector}")
+            row[6] = "🔗 Clic aquí"
             str_row = [str(cell) if cell is not None else "" for cell in row]
             self.tree.insert("", "end", values=str_row)
 
         self.auto_ajustar_columnas_()
 
     def cargar_tabla(self):
-        # Limpiar tabla
         for row in self.tree.get_children():
             self.tree.delete(row)
 
-        # Obtener datos y sectores
         data = obtener_orden_compra_activos()
-        sectores = obtener_sectores()  # {nombre: id}
-        sectores_id_a_nombre = {v: k for k, v in sectores.items()}  # invertimos el diccionario
+        sectores = obtener_sectores()
+        sectores_id_a_nombre = {v: k for k, v in sectores.items()}
+
+        data_formateada = []
 
         for row in data:
-            row = list(row)  # convertir a lista editable
+            row = list(row)
+
+            # reemplazar id_sector por nombre
             if len(row) > 1:
                 id_sector = row[1]
-                # Reemplazar por el nombre si existe
                 row[1] = sectores_id_a_nombre.get(id_sector, f"ID {id_sector}")
-            str_row = [str(cell) if cell is not None else "" for cell in row]
-            self.tree.insert("", "end", values=str_row)
-        self.color_alternado
-        self.auto_ajustar_columnas()
+
+            data_formateada.append(row)
+            row[6] = "🔗 Clic aquí"
+        # 🔹 GUARDAR DATA EN MEMORIA (AQUÍ VA)
+        self.current_data = [
+            [str(cell) if cell is not None else "" for cell in row]
+            for row in data_formateada
+        ]
+
+        # 🔹 ACTUALIZAR OPCIONES DE AÑO / MES
+        self.actualizar_filtros_fecha(self.current_data)
+
+        # 🔹 APLICAR FILTROS (pinta la tabla)
+        self.aplicar_filtro_activos()
+
+            
+        #     str_row = [str(cell) if cell is not None else "" for cell in row]
+        #     self.tree.insert("", "end", values=str_row)
+        # self.color_alternado
+        # self.auto_ajustar_columnas()
 
     # ------------------- AJUSTE DE COLUMNAS -------------------
     def auto_ajustar_columnas_(self):
@@ -291,7 +541,7 @@ class Verorden(ctk.CTkFrame):
                     FECHA=entries["FECHA"].get().strip(),
                     ID_SECTOR=ID_SECTOR_id,
                     ORDEN_COMPRA=entries["ORDEN_COMPRA"].get().strip(),
-                    CANTIDAD_HORAS=int(entries["CANTIDAD_HORAS"].get().strip()),
+                    CANTIDAD_HORAS=float(entries["CANTIDAD_HORAS"].get().strip()),
                     TIPO_EQUIPO=entries["TIPO_EQUIPO"].get().strip(),
                     ACTIVO=int(entries["ACTIVO"].get().strip()),
                     orden_original=self.orden_inicial
@@ -419,34 +669,36 @@ class Verorden(ctk.CTkFrame):
         for row in self.tree.get_children():
             self.tree.delete(row)
 
-        data = obtener_orden_compra_activos()
-        sectores = obtener_sectores()  # {nombre: id}
-        sectores_id_a_nombre = {v: k for k, v in sectores.items()}  # invertimos el diccionario
-
-        # 🔹 CORREGIDO: modificar los elementos dentro de 'data'
-        data_modificada = []
-        for row in data:
-            row = list(row)
-            if len(row) > 1:
-                id_sector = row[1]
-                row[1] = sectores_id_a_nombre.get(id_sector, f"ID {id_sector}")
-            data_modificada.append(row)
-
-        # convertir a texto
-        str_data = [[str(cell) if cell is not None else "" for cell in row] for row in data_modificada]
-
-        # aplicar filtros
         filtered = []
-        for row in str_data:
+
+        for row in self.current_data:
             keep = True
+
+            # ---- FILTROS POR COLUMNA ----
             for col, allowed in self.active_filters.items():
                 idx = self.columns.index(col)
                 if row[idx] not in allowed:
                     keep = False
                     break
-            if keep:
-                filtered.append(row)
+
+            if not keep:
+                continue
+
+            # ---- FILTRO AÑO / MES ----
+            fecha = datetime.strptime(row[self.columns.index("FECHA")], "%Y-%m-%d")
+
+            if self.filtro_anio.get() != "Todos":
+                if fecha.year != int(self.filtro_anio.get()):
+                    continue
+
+            if self.filtro_mes.get() != "Todos":
+                if fecha.month != int(self.filtro_mes.get()):
+                    continue
+
+            filtered.append(row)
 
         for row in filtered:
-            self.tree.insert("", "end", values=row)
+            row_mod = list(row)
+            row_mod[6] = "🔗 Clic aquí"
+            self.tree.insert("", "end", values=row_mod)
 

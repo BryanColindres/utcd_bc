@@ -19,7 +19,7 @@ class AcercaDe(ctk.CTkFrame):
                 "Esta aplicación fue desarrollada para optimizar la gestión y control de las horas de grúa, "
                 "facilitando el registro, edición y exportación de la información.\n\n"
                 "Incorpora un bot de alerta que notifica automáticamente cuando se sobrepasa el 70% "
-                "del total de horas disponibles.\n\n"
+                "del total de horas disponibles previa evaluación al contratista.\n\n"
                 "Además, el sistema permite agregar nuevas órdenes de compra junto con su soporte correspondiente, "
                 "así como desactivar aquellas que ya no se utilizan. También ofrece un monitoreo continuo del uso "
                 "y disponibilidad de las horas grua."

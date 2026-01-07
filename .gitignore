@@ -1,0 +1,19 @@
+# Builds y ejecutables
+build/
+dist/
+*.exe
+*.pkg
+*.spec
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Documentos
+*.docx
+~$*
+
+# Archivos temporales
+*.log
+*.zip

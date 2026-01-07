@@ -93,17 +93,44 @@ class Estadisticas(ctk.CTkFrame):
             equipos = data['tipo_equipo'].tolist()
             col = 0
             row = 0
-            for i in range(len(data)):
-                orden = ordenes[i]
-                equipo = equipos[i]
-                resultado = horas_para_grafico(id_sector, orden, {"CANTIDAD_UTILIZADA": "0"}, equipo)
-                if resultado:
-                    cuadro = self.crear_cuadro_orden(orden, resultado,equipo)
-                    cuadro.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")
-                    col += 1
-                    if col > 1:
-                        col = 0
-                        row += 1
+            for _, row_data in data.iterrows():
+                orden = row_data["orden_compra"]
+                equipo = row_data["tipo_equipo"]
+
+                resultado = horas_para_grafico(
+                    id_sector,
+                    orden,
+                    {"CANTIDAD_UTILIZADA": "0"},
+                    equipo
+                )
+
+                if not resultado:
+                    continue
+
+                total_usado = float(resultado["Total_Usado"])
+                total_disponible = float(resultado["Disponible_Decimal"])
+
+                # 🚫 NO mostrar cuadros sin uso real
+                if total_usado == 0 and total_disponible == 0:
+                    continue
+
+                cuadro = self.crear_cuadro_orden(orden, resultado, equipo)
+                cuadro.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")
+
+                col += 1
+                if col > 1:
+                    col = 0
+                    row += 1
+            
+            if row == 0 and col == 0:
+                ctk.CTkLabel(
+                    self.canvas_frame,
+                    text="No hay horas registradas para este sector",
+                    font=("Poppins", 14),
+                    text_color="#7F8C8D"
+                ).pack(pady=40)
+
+
             for i in range(2):
                 self.canvas_frame.grid_columnconfigure(i, weight=1)
             cargando.destroy()

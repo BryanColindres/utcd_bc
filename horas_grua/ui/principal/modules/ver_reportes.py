@@ -3,9 +3,10 @@ from tkinter import ttk, messagebox, font as tkFont
 import sys, os
 from datetime import datetime
 from datetime import timedelta
+import pandas as pd
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
-from db_controller import obtener_horas_grua, eliminar_horas_grua, actualizar_horas_grua,obtener_orden_compra,obtener_id_sector,obtener_rol,obtener_horas_grua_completo,obtener_sectores
+from db_controller import obtener_horas_grua, eliminar_horas_grua, actualizar_horas_grua,obtener_orden_compra,obtener_id_sector,obtener_rol,obtener_horas_grua_completo,obtener_sectores,obtener_responsable_sector
 
 class VerReportes(ctk.CTkFrame):
     def __init__(self, parent):
@@ -17,6 +18,11 @@ class VerReportes(ctk.CTkFrame):
         # Guardamos los anchos iniciales
         
         self.sectores = obtener_sectores()
+
+        hoy = datetime.now()
+        self.filtro_anio = ctk.StringVar(value=str(hoy.year))
+        self.filtro_mes = ctk.StringVar(value=f"{hoy.month:02d}")
+        self.filtro_sector = ctk.StringVar(value="Todos")
 
 
         # 🔹 Etiqueta de conteo de filas
@@ -39,6 +45,45 @@ class VerReportes(ctk.CTkFrame):
 
         # Título
         ctk.CTkLabel(self, text="Reportes de Uso de Grúa 📊", font=("Poppins", 22, "bold"), text_color="#E74C3C").pack(pady=(20,10))
+        filtros_frame = ctk.CTkFrame(self, fg_color="white")
+        filtros_frame.pack(fill="x", padx=20, pady=(0,10))
+
+        ctk.CTkLabel(filtros_frame, text="Año").grid(row=0, column=0, padx=5)
+        
+        
+
+        self.combo_anio = ctk.CTkOptionMenu(
+            filtros_frame,
+            variable=self.filtro_anio,
+            values=["Todos"],  # se llenará dinámicamente
+            command=lambda _: self.aplicar_filtro_activos()
+        )
+        self.combo_anio.grid(row=0, column=1, padx=5)
+
+        ctk.CTkLabel(filtros_frame, text="Mes").grid(row=0, column=2, padx=5)
+
+        self.combo_mes = ctk.CTkOptionMenu(
+            filtros_frame,
+            variable=self.filtro_mes,
+            values=["Todos"],
+            command=lambda _: self.aplicar_filtro_activos()
+        )
+        self.combo_mes.grid(row=0, column=3, padx=5)
+
+        if self.rol == "admin":
+            ctk.CTkLabel(filtros_frame, text="Sector").grid(row=0, column=4, padx=5)
+
+            sectores_nombres = ["Todos"] + list(self.sectores.keys())
+
+            self.combo_sector = ctk.CTkOptionMenu(
+                filtros_frame,
+                variable=self.filtro_sector,
+                values=sectores_nombres,
+                command=lambda _: self.aplicar_filtro_activos()
+            )
+            self.combo_sector.grid(row=0, column=5, padx=5)
+
+
 
         # Contenedor tabla
         table_container = ctk.CTkFrame(self, fg_color="white")
@@ -54,25 +99,25 @@ class VerReportes(ctk.CTkFrame):
             # Columnas
             self.columns = [
                 "ID", "FECHA_UTILIZACION", "SERVICIO_UTILIZADO", "UNIDAD_DE_MEDIDA",
-                "HORA_DE_INICIO", "HORA_FINAL", "CANTIDAD_UTILIZADA", "JUSTIFICACION", "RESPONSABLE","ORDEN_COMPRA",'id_sector'
+                "HORA_DE_INICIO", "HORA_FINAL", "CANTIDAD_UTILIZADA", "JUSTIFICACION", "RESPONSABLE","ORDEN_COMPRA","TIPO_EQUIPO",'id_sector'
             ]
             self.column_headers = [
                 "ID", "FECHA UTILIZACIÓN", "SERVICIO UTILIZADO", "UNIDAD DE MEDIDA",
                 "HORA DE INICIO", "HORA FINAL", "CANTIDAD UTILIZADA",
-                "JUSTIFICACIÓN", "RESPONSABLE", "ORDEN COMPRA",'SECTOR'
+                "JUSTIFICACIÓN", "RESPONSABLE", "ORDEN COMPRA","TIPO EQUIPO","SECTOR"
             ]
         else:
             # Columnas
             self.columns = [
                 "ID", "FECHA_UTILIZACION", "SERVICIO_UTILIZADO", "UNIDAD_DE_MEDIDA",
-                "HORA_DE_INICIO", "HORA_FINAL", "CANTIDAD_UTILIZADA", "JUSTIFICACION", "RESPONSABLE","ORDEN_COMPRA"
+                "HORA_DE_INICIO", "HORA_FINAL", "CANTIDAD_UTILIZADA", "JUSTIFICACION", "RESPONSABLE","ORDEN_COMPRA","TIPO_EQUIPO"
             ]
             self.column_headers = [
                 "ID", "FECHA UTILIZACIÓN", "SERVICIO UTILIZADO", "UNIDAD DE MEDIDA",
                 "HORA DE INICIO", "HORA FINAL", "CANTIDAD UTILIZADA",
-                "JUSTIFICACIÓN", "RESPONSABLE", "ORDEN COMPRA"
+                "JUSTIFICACIÓN", "RESPONSABLE", "ORDEN COMPRA","TIPO_EQUIPO"
             ]
-        self.colums_editables = ["FECHA_UTILIZACION","HORA_DE_INICIO","CANTIDAD_UTILIZADA", "HORA_FINAL", "JUSTIFICACION", "RESPONSABLE","ORDEN_COMPRA"]
+        self.colums_editables = ["FECHA_UTILIZACION","HORA_DE_INICIO","CANTIDAD_UTILIZADA", "HORA_FINAL", "JUSTIFICACION", "RESPONSABLE","ORDEN_COMPRA","TIPO_EQUIPO"]
         self.column_widths_iniciales = {col: 130 for col in self.columns}  # ancho por defecto
         # Treeview
         self.tree = ttk.Treeview(
@@ -110,13 +155,13 @@ class VerReportes(ctk.CTkFrame):
         # Configurar encabezados y clic para filtro
         for col, header in zip(self.columns, self.column_headers):
             self.tree.heading(col, text=header, command=lambda c=col: self.mostrar_columna_filtrada(c))
-            self.tree.column(col, anchor="center", width=120, stretch=True)
+            self.tree.column(col, anchor="center", width=120, stretch=False)
 
         # Botones
         button_frame = ctk.CTkFrame(self, fg_color="white")
         button_frame.pack(pady=10)
         ctk.CTkButton(button_frame, text="🔄 Refrescar", fg_color="#3498DB", hover_color="#2980B9",
-                      command=self.cargar_tabla).grid(row=0, column=0, padx=5)
+                      command=self.refrescar_completo).grid(row=0, column=0, padx=5)
         # ctk.CTkButton(button_frame, text="🗑️ Eliminar seleccionado", fg_color="#E74C3C", hover_color="#C0392B",
         #               command=self.eliminar_seleccion).grid(row=0, column=1, padx=5)
         ctk.CTkButton(button_frame, text="✏️ Editar seleccionado", fg_color="#F39C12", hover_color="#D68910",
@@ -128,13 +173,87 @@ class VerReportes(ctk.CTkFrame):
         self.cargar_tabla()
 
 
+    def actualizar_scroll_horizontal(self):
+        total_width = 0
+        for col in self.columns:
+            total_width += self.tree.column(col, option="width")
+
+        # Forzar que el Treeview tenga ese ancho
+        self.tree.configure(width=total_width)
+
+        # Forzar actualización visual
+        self.tree.update_idletasks()
+
+
+    def refrescar_completo(self):
+        # Limpiar filtros por columna
+        self.active_filters.clear()
+
+        # Cerrar ventanas de filtros
+        for win in self.filter_windows.values():
+            if win.winfo_exists():
+                win.destroy()
+        self.filter_windows.clear()
+
+        # Resetear filtros superiores
+        hoy = datetime.now()
+        self.filtro_anio.set(str(hoy.year))
+        self.filtro_mes.set(f"{hoy.month:02d}")
+        self.filtro_sector.set("Todos")
+
+        # Recargar data
+        self.cargar_tabla()
+
+
+
+
+    def actualizar_filtros_fecha(self, data):
+        fechas = []
+        idx_fecha = self.columns.index("FECHA_UTILIZACION")
+
+        for row in data:
+            try:
+                fechas.append(datetime.strptime(row[idx_fecha], "%Y-%m-%d"))
+            except:
+                continue
+
+        if not fechas:
+            return
+
+        anios = sorted({f.year for f in fechas})
+        meses = sorted({f.month for f in fechas})
+
+        self.combo_anio.configure(
+            values=["Todos"] + [str(a) for a in anios]
+        )
+
+        self.combo_mes.configure(
+            values=["Todos"] + [f"{m:02d}" for m in meses]
+        )
+
+        # 🔹 Mantener selección válida o volver al actual
+        hoy = datetime.now()
+
+        if str(hoy.year) in self.combo_anio.cget("values"):
+            self.filtro_anio.set(str(hoy.year))
+        else:
+            self.filtro_anio.set("Todos")
+
+        mes_actual = f"{hoy.month:02d}"
+        if mes_actual in self.combo_mes.cget("values"):
+            self.filtro_mes.set(mes_actual)
+        else:
+            self.filtro_mes.set("Todos")
+
+
     def get_treeview_data(self):
         """Devuelve los datos actualmente visibles en la tabla (ya filtrados)."""
-        data = []
-        for row in self.current_data:
+        #data = []
+        #for row in self.current_data:
             # Excluir las dos últimas columnas si existen
-            data.append(row[:-2] if len(row) > 2 else row)
-        return data
+            #data.append(row[:-2] if len(row) > 2 else row)
+        #return data
+        return self.current_data.copy()
 
     def actualizar_conteo_filas(self):
         total = len(self.current_data)
@@ -150,7 +269,10 @@ class VerReportes(ctk.CTkFrame):
                 return
 
             from .exportar import export_to_excel
-            export_to_excel(data, columns=self.column_headers)
+            print('EXPORTANDO...')
+            print(self.columns)
+            print(data)
+            export_to_excel(data, columns=self.columns, id_sector=self.id_sector)
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo exportar los datos:\n{e}")
 
@@ -167,9 +289,10 @@ class VerReportes(ctk.CTkFrame):
         for row in data:
             row = list(row)  # convertir a lista editable
             if len(row) > 1:
-                id_sector = row[1]
+                id_sector = row[-1]
                 # Reemplazar por el nombre si existe
-                row[1] = sectores_id_a_nombre.get(id_sector, f"ID {id_sector}")
+                sector_nombre = sectores_id_a_nombre.get(id_sector, str(id_sector))
+                row[-1] = sector_nombre
             str_row = [str(cell) if cell is not None else "" for cell in row]
             self.tree.insert("", "end", values=str_row)
         for row in data:
@@ -208,6 +331,8 @@ class VerReportes(ctk.CTkFrame):
 
         # Guarda los datos cargados en memoria
         self.current_data = [[str(cell) if cell is not None else "" for cell in row] for row in data]
+        
+        self.actualizar_filtros_fecha(self.current_data)
 
         # Restaurar anchos iniciales
         for col, width in self.column_widths_iniciales.items():
@@ -232,6 +357,8 @@ class VerReportes(ctk.CTkFrame):
     def auto_ajustar_columnas(self):
         fnt = tkFont.Font()
         MAX_COLUMN_WIDTH = 400
+        total_width = 0
+
         for col in self.columns:
             max_width = fnt.measure(col) + 25
             for item in self.tree.get_children():
@@ -239,8 +366,16 @@ class VerReportes(ctk.CTkFrame):
                 width = fnt.measure(cell_text) + 25
                 if width > max_width:
                     max_width = width
-            self.tree.column(col, width=min(max_width, MAX_COLUMN_WIDTH), stretch=False)
-            self.column_widths_iniciales[col] = min(max_width, MAX_COLUMN_WIDTH)
+
+            final_width = min(max_width, MAX_COLUMN_WIDTH)
+            self.tree.column(col, width=final_width, stretch=False)
+            self.column_widths_iniciales[col] = final_width
+            total_width += final_width
+
+        # 🔹 ESTO ES LO QUE ARREGLA EL SCROLL
+        self.tree.configure(width=total_width)
+        self.tree.update_idletasks()
+
 
     # ------------------- COLOR ALTERNADO -------------------
     def color_alternado(self):
@@ -283,6 +418,7 @@ class VerReportes(ctk.CTkFrame):
         # --- Ventana de edición ---
         edit_win = ctk.CTkToplevel(self)
         edit_win.title(f"Editar ITEM {valores[0]}")
+        edit_win.protocol("WM_DELETE_WINDOW", edit_win.destroy)
         edit_win.grab_set()
 
         # Tamaño fijo y centrado
@@ -296,9 +432,11 @@ class VerReportes(ctk.CTkFrame):
         frame_canvas = ctk.CTkFrame(edit_win, fg_color="black")
         frame_canvas.pack(fill="both", expand=True, padx=10, pady=10)
 
-        canvas = ctk.CTkCanvas(frame_canvas, bg="black", highlightthickness=0)
+        import tkinter as tk
+        canvas = tk.Canvas(frame_canvas, bg="black", highlightthickness=0)
         scrollbar = ctk.CTkScrollbar(frame_canvas, orientation="vertical", command=canvas.yview)
-        scrollable_frame = ctk.CTkFrame(canvas, fg_color="black")
+        
+        scrollable_frame = tk.Frame(canvas, bg="black")
 
         scrollable_frame.bind(
             "<Configure>",
@@ -314,8 +452,9 @@ class VerReportes(ctk.CTkFrame):
         # --- Variables ---
         self.ed_vars = {}
         entries = {}
-
+        option_menus = []
         # --- Campos de edición ---
+        
         for col in self.colums_editables:
             if col == "CANTIDAD_UTILIZADA":
                 continue
@@ -355,8 +494,16 @@ class VerReportes(ctk.CTkFrame):
                 continue
 
             # Campo ORDEN_COMPRA -> combo
+            
             if col == "ORDEN_COMPRA":
-                opciones = obtener_orden_compra(self.id_sector)
+                opciones_df = obtener_orden_compra(self.id_sector)
+                if isinstance(opciones_df, pd.DataFrame):
+                    opciones = opciones_df["orden_compra"].astype(str).tolist()
+                else:
+                    opciones = opciones_df
+
+                if not opciones:
+                    opciones = ["SIN ORDEN"]
                 combo = ctk.CTkOptionMenu(
                     scrollable_frame,
                     variable=var,
@@ -371,7 +518,55 @@ class VerReportes(ctk.CTkFrame):
                 )
                 combo.pack(padx=20, pady=(0, 10))
                 entries[col] = combo
+                option_menus.append(combo)
                 continue
+
+            if col == "RESPONSABLE":
+                opciones_df = obtener_responsable_sector(self.id_sector)
+                if isinstance(opciones_df, pd.DataFrame):
+                    opciones = opciones_df["responsable"].astype(str).tolist()
+                else:
+                    opciones = opciones_df
+
+                if not opciones:
+                    opciones = ["SIN RESPONSABLES"]
+                combo = ctk.CTkOptionMenu(
+                    scrollable_frame,
+                    variable=var,
+                    values=opciones,
+                    width=350,
+                    fg_color="#151010",
+                    button_color="#E74C3C",
+                    button_hover_color="#C0392B",
+                    text_color="#D8D8D8",
+                    dropdown_fg_color="#FFFFFF",
+                    dropdown_text_color="#94A2B1"
+                )
+                combo.pack(padx=20, pady=(0, 10))
+                entries[col] = combo
+                option_menus.append(combo)
+                continue
+
+            if col == "TIPO_EQUIPO":
+                opciones = ['GRUA','CANASTA']
+                combo = ctk.CTkOptionMenu(
+                    scrollable_frame,
+                    variable=var,
+                    values=opciones,
+                    width=350,
+                    fg_color="#151010",
+                    button_color="#E74C3C",
+                    button_hover_color="#C0392B",
+                    text_color="#D8D8D8",
+                    dropdown_fg_color="#FFFFFF",
+                    dropdown_text_color="#94A2B1"
+                )
+                combo.pack(padx=20, pady=(0, 10))
+                entries[col] = combo
+                option_menus.append(combo)
+                continue
+
+
 
             # Campos no editables (ejemplo)
             if col in ["ID", "FECHA", "CANTIDAD_CALCULADA"]:  # ajusta según tu caso
@@ -424,6 +619,7 @@ class VerReportes(ctk.CTkFrame):
                 JUSTIFICACION=entries["JUSTIFICACION"].get("1.0", "end").strip() if "JUSTIFICACION" in entries else "",
                 RESPONSABLE=self.ed_vars.get("RESPONSABLE", ctk.StringVar(value=valores[self.columns.index("RESPONSABLE")])).get().strip(),
                 ORDEN_COMPRA=self.ed_vars.get("ORDEN_COMPRA", ctk.StringVar(value=valores[self.columns.index("ORDEN_COMPRA")])).get().strip(),
+                TIPO_EQUIPO=self.ed_vars.get("TIPO_EQUIPO", ctk.StringVar(value=valores[self.columns.index("TIPO_EQUIPO")])).get().strip(),
                 id=valores[0]
             )
             edit_win.destroy()  # Solo se cierra después de guardar
@@ -574,13 +770,37 @@ class VerReportes(ctk.CTkFrame):
         filtered = []
         for row in str_data:
             keep = True
+
+            # ---- FILTRO POR COLUMNA (YA EXISTENTE) ----
             for col, allowed in self.active_filters.items():
                 idx = self.columns.index(col)
                 if row[idx] not in allowed:
                     keep = False
                     break
-            if keep:
-                filtered.append(row)
+
+            if not keep:
+                continue
+
+            # ---- FILTRO AÑO / MES ----
+            fecha = datetime.strptime(
+                row[self.columns.index("FECHA_UTILIZACION")], "%Y-%m-%d"
+            )
+
+            if self.filtro_anio.get() != "Todos":
+                if fecha.year != int(self.filtro_anio.get()):
+                    continue
+
+            if self.filtro_mes.get() != "Todos":
+                if fecha.month != int(self.filtro_mes.get()):
+                    continue
+
+            # ---- FILTRO SECTOR ----
+            if self.rol == "admin" and self.filtro_sector.get() != "Todos":
+                if row[-1] != self.filtro_sector.get():
+                    continue
+
+            filtered.append(row)
+
 
         # Actualizar datos visibles
         self.current_data = filtered

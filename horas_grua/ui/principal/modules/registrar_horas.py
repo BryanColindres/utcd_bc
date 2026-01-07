@@ -10,7 +10,7 @@ from .ficha_evaluacion_grua import EvaluacionProveedorModal
 
 # Ajustar path para importar db_controller
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
-from db_controller import insertar_hora_grua,validar_horas_disponibles,obtener_orden_compra,correo_enviado,obtener_sectores,obtener_id_sector,validacion_,obtener_rol,obtener_orden_compra_completo,validacion_admin,info_orden,insertar_correo,completado_orden
+from db_controller import insertar_hora_grua,validar_horas_disponibles,obtener_orden_compra,correo_enviado,obtener_sectores,obtener_id_sector,validacion_,obtener_rol,obtener_orden_compra_completo,validacion_admin,info_orden,insertar_correo,completado_orden,obtener_responsable_sector
 
 class RegistrarHoras(ctk.CTkFrame):
     
@@ -69,7 +69,7 @@ class RegistrarHoras(ctk.CTkFrame):
 
         # RESPONSABLE
         ctk.CTkLabel(form_frame, text="RESPONSABLE:", font=("TT NORMS PRO",14,"bold"),text_color="#87898F").grid(row=8, column=0, sticky="e", padx=10, pady=8)
-        self.resp_entry = ctk.CTkComboBox(form_frame, values=["Ing. Numero 1", "Ing. Numero 2", "Ing. Numero 3"], width=250, fg_color="#EFEFEF", text_color="#87898F",state="readonly")
+        self.resp_entry = ctk.CTkComboBox(form_frame, values=self.obtener_responsables(), width=250, fg_color="#EFEFEF", text_color="#87898F",state="readonly")
         self.resp_entry.grid(row=8, column=1, columnspan=2, sticky="w", padx=10, pady=8)
 
         # ORDEN COMPRA
@@ -83,7 +83,10 @@ class RegistrarHoras(ctk.CTkFrame):
         self.btn_borrar = ctk.CTkButton(form_frame, text="Borrar Todo", font=("TT NORMS PRO",16,"bold"), fg_color="#F1F1F4",text_color='#616161', hover_color="#EFF0F8", command=self.borrar_todo, width=150,height=40)
         self.btn_borrar.grid(row=10, column=0, pady=30)
 
-        
+    def obtener_responsables(self):
+        supervisores = obtener_responsable_sector(self.id_sector)
+        return supervisores
+    
     def ordenes_compras_(self):
         print("Sector ID en registrar horas:", self.id_sector)
 

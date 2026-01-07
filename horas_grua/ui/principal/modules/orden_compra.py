@@ -301,7 +301,7 @@ class ordencompra(ctk.CTkFrame):
             if i not in self.items_guardados:
                 messagebox.showinfo(
                     "Cargando siguiente",
-                    "Este PDF tiene otro registro.\nSe cargará automáticamente."
+                    "Este PDF tiene otro registro.\nNo es necesario volver a cargar, Dar clic en guardar nuevamente"
                 )
                 self.index_actual = i
                 self.cargar_item(i)
