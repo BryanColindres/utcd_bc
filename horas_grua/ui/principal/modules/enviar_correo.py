@@ -13,7 +13,7 @@ load_dotenv()
 
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
-from db_controller import sector_id
+from db_controller import sector_id,obtener_cc,obtener_correo
 
 def send_email(access_token, subject, body, to_addresses, attachment_path=None,cc_addresses =None):
     # Crear una sesión de Microsoft Graph con el token de acceso
@@ -90,26 +90,23 @@ def send_email(access_token, subject, body, to_addresses, attachment_path=None,c
     # )
     url = "https://graph.microsoft.com/v1.0/me/sendMail"
     
-    while True:
+    MAX_RETRIES = 10
+    attempt = 0
+
+    while attempt < MAX_RETRIES:
         try:
-            response = requests.post(url, headers=headers, json=email_message)
+            response = requests.post(url, headers=headers, json=email_message, timeout=15)
             response.raise_for_status()
             logging.info("Correo enviado exitosamente.")
-            break  # Éxito → salimos del bucle
-        except requests.exceptions.SSLError as ssl_error:
-            logging.warning("Fallo SSL, intentando sin verificación de certificado...")
-            try:
-                response = requests.post(url, headers=headers, json=email_message, verify=False)
-                response.raise_for_status()
-                logging.info("Correo enviado exitosamente (con verificación desactivada).")
-                break  # Éxito → salimos del bucle
-            except Exception as e:
-                logging.error(f"Nuevo error al intentar sin verificación: {e}")
+            break
         except requests.exceptions.RequestException as e:
-            logging.error(f"Error al enviar correo: {e}")
-        
-        logging.info("Reintentando en 3 segundos...")
-        time.sleep(3)  # Esperar antes de reintentar
+            attempt += 1
+            logging.error(f"Intento {attempt}/{MAX_RETRIES} fallido: {e}")
+            time.sleep(3)
+    else:
+        logging.critical("No se pudo enviar el correo tras varios intentos.")
+        return False
+
 
     # Verificar la respuesta
     if response.status_code == 202:
@@ -183,27 +180,7 @@ def obtener_token():
         #print(response.json())
     return access_token
 
-def obtener_correos_por_sector(cursor, sector):
-    """
-    Obtiene los correos (coordinador y líder) para un sector desde la tabla SECTORESUTCD
-    """
-    query = """
-        SELECT Cargo, Correo
-        FROM [192.168.104.84].[GESTIONCONTROL].dbo.SECTORESUTC
-        WHERE Sector = ?
-    """
-    cursor.execute(query, (sector,))
-    rows = cursor.fetchall()
 
-    # Separar correos según cargo
-    to_addresses = []
-    cc_addresses = ["bryan.colindres@eneeutcd.hn","cristian.umanzor@eneeutcd.hn"]
-
-    for cargo, correo in rows:
-        to_addresses.append(correo)
-
-
-    return to_addresses, cc_addresses
 
 # ---------------- enviar correo ----------------
 
@@ -245,8 +222,8 @@ def envia_correo(sector, orden_compra, attachment_path=None):
         body = f"Se alcanzó el límite de horas para la orden {orden_compra} en sector {sector_obtenido}."
 
     # Destinatarios por defecto (puedes sustituir por lógica por sector si existe)
-    to_addresses = ["bryan.colindres@eneeutcd.hn"]
-    cc_addresses = ["bryan.colindres@eneeutcd.hn"]
+    to_addresses = obtener_correo(sector)
+    cc_addresses = obtener_cc()
 
     # Verificar adjunto (si se pasó)
     if attachment_path:

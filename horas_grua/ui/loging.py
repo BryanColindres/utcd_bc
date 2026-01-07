@@ -57,8 +57,18 @@ class Login(ctk.CTkToplevel):
         ctk.CTkLabel(inner_frame, text="Sistema interno para el registro, control y\nseguimiento del uso de grúas UTCD.",
                      font=("Inter", 19), fg_color="#5FD0DF", text_color="white", justify="center").pack(pady=(100,0))
 
-        ruta_imagen = os.path.join(os.path.dirname(os.path.dirname(__file__)), "imagenes", "grua.png")
-        img = Image.open(ruta_imagen).resize((250,300))
+
+        def resource_path(relative_path):
+            try:
+                base_path = sys._MEIPASS  # PyInstaller
+            except Exception:
+                base_path = os.path.abspath(".")
+
+            return os.path.join(base_path, relative_path)
+
+        ruta_imagen = resource_path(os.path.join("imagenes", "grua.png"))
+        img = Image.open(ruta_imagen).resize((250, 300))
+
         self.imagen_tk = ImageTk.PhotoImage(img)
         Label(inner_frame, image=self.imagen_tk, bg="#5FD0DF").pack(pady=(100,100))
 
@@ -98,6 +108,7 @@ class Login(ctk.CTkToplevel):
         # Enter para submit
         self.usuario.bind("<Return>", lambda e: self.iniciar_sesion())
         self.clave.bind("<Return>", lambda e: self.iniciar_sesion())
+
 
     # ---------------- Funciones ----------------
     def alternar_contraseña(self):
