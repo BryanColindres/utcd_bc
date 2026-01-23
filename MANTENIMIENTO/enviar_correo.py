@@ -577,10 +577,10 @@ def envia_correo():
         print("Token de acceso obtenido correctamente.")
         data = obtener_circuitos_sin_mantenimiento(cursor_global, meses=6)
         body = generar_tabla_html(data)
-        to_addresses = ["bryan.colindres@eneeutcd.hn", "ruben.ayestas@eneeutcd.hn","cristian.umanzor@eneeutcd.hn"]
-        cc_addresses = ["bryan.colindres@eneeutcd.hn"]
+        to_addresses = ["oscar.posadas@eneeutcd.hn"]
+        cc_addresses = ["elmer.bustillo@eneeutcd.hn","edwin.carrasco@eneeutcd.hn","daniel.garcia@eneeutcd.hn","laura.munguia@eneeutcd.hn","monica.rodriguez@eneeutcd.hn","larissa.aceituno@eneeutcd.hn","bryan.colindres@eneeutcd.hn","cristian.umanzor@eneeutcd.hn","david.rosales@eneeutcd.hn"]
         
-        send_email(access_token, "CIRCUITOS SIN MANTENIMIENTO EN LOS ULTIMOS 6 MESES", body, to_addresses, attachment_path=None,cc_addresses=None)
+        send_email(access_token, "CIRCUITOS SIN MANTENIMIENTO EN LOS ULTIMOS 6 MESES", body, to_addresses, attachment_path=None,cc_addresses=cc_addresses)
         return True
 
 if __name__ == "__main__":

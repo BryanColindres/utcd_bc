@@ -22,7 +22,21 @@ from db_controller import obtener_proveedor_codigo, obtener_datos_sectores
 SHEET_NAME = "V2"
 START_ROW = 14
 MAX_TEMPLATE_ROWS = 15
-TEMPLATE_FILENAME = r"C:\Users\bryan.colindres\Downloads\MRS-MAN-F-12 Control y seguimiento de servicios contratados.xlsx"
+def resource_path(relative_path):
+    """
+    Obtiene la ruta correcta tanto en desarrollo como en .exe
+    """
+    try:
+        base_path = sys._MEIPASS  # PyInstaller
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
+
+TEMPLATE_FILENAME = resource_path(
+    os.path.join("resources", "plantilla_control_servicios.xlsx")
+)
+
 
 # ============================================================
 # LOCALE PARA FECHA EN ESPAÑOL
