@@ -659,6 +659,24 @@ def obtener_responsable_sector(sector):
 
     return responsables
 
+
+def obtener_supervisor_sector(sector):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        f"""
+        select SUPERVISOR from HORAS_GRUA_SECTORES
+        where id_sector = '{sector}' 
+        """
+    )
+    rows  = cursor.fetchall()
+    conn.commit()
+    conn.close()
+    # 👇 CONVERSIÓN CLAVE
+    responsables = [str(row[0]) for row in rows]
+
+    return responsables
+
 #ME FALTA VER LO DEL EQUIPO QUE NO SE DE DONDE SACARLO POR QUE TIENE QUE SER ESPECIFICO EL QUE TRAE YA
 
 def actualizar_completado_orden(data):
@@ -1067,6 +1085,8 @@ def insertar_correo(id_sector, orden_compra,equipo):
         print("Error al marcar correo como enviado:", e)
         messagebox.showerror("Error", f"No se pudo registrar en la base de datos el correo:\n{str(e)}")
         return False
+
+
 
 
     # ------------------- OBTENER CC PARA CORREO -------------

@@ -117,30 +117,50 @@ def send_email(access_token, subject, body, to_addresses, attachment_path=None,c
         return False
 
 
-def generar_tabla_html(sector,orden_compra):
-    html = f"""<html> <body>
-    <p>Buen dia, </p>
-    <p>Estimados Ingenieros: </p>
-    <p>Reciban un cordial saludo. Deseando éxitos en sus labores diarias, informando que que el sector {sector} ha alcanzado el 70% en horas grua en la orden de compra {orden_compra}:</p>
-    """
-    html += """
-    <p>Quedamos a la orden como parte del equipo de la Dirección de Planeación y Gestión del Desempeño, para futuras colaboraciones que puedan aportar a la mejora de los indicadores estratégicos a nivel de Empresa.</p>
-    <p>Saludos cordiales.</p>
+def generar_tabla_html(sector, orden_compra):
+    html = f"""
+    <html>
+    <body style="font-family: Calibri; font-size: 14pt; color: #000000;">
+        <p>Buen día,</p>
+
+        <p>Estimados ingenieros:</p>
+
+        <p>
+            Reciban un cordial saludo. Por este medio, se informa que el sector
+            <strong>{sector}</strong> ha alcanzado un
+            <strong>70&nbsp;% de avance en horas grúa</strong>, correspondiente a la
+            <strong>orden de compra {orden_compra}</strong>.
+        </p>
+
+        <p>
+            A fin de garantizar la continuidad operativa y evitar retrasos en la ejecución,
+            se solicita considerar este avance para la gestión oportuna de las acciones
+            administrativas correspondientes. Adicionalmente, se adjunta el informe de evaluación del servicio
+            brindado por el contratista para su revisión y análisis.
+        </p>
+
+        <p>
+            Desde la <strong>Dirección de Planeación y Gestión del Desempeño</strong>,
+            quedamos atentos para brindar el acompañamiento necesario.
+        </p>
+
+        <p>Saludos cordiales.</p>
+
+        <br>
+
+        <div>
+            <p>
+                <strong>Bryan Colindres</strong><br>
+                Gestión de la Información<br>
+                UTCD - ENEE<br>
+                <a href="mailto:bryan.colindres@eneeutcd.hn">bryan.colindres@eneeutcd.hn</a><br>
+                Tel: +504 3162-6792
+            </p>
+        </div>
     </body>
     </html>
     """
-    html += """
-    <div style="font-family: Calibri; font-size: 14pt; color: #000000;">
-        <p><strong>Bryan Colindres</strong><br>
-        <strong>Gestión de la Información</strong><br>
-        UTCD - ENEE<br>
-        <a href="mailto:bryan.colindres@enee.hn">bryan.colindres@enee.hn</a><br>
-        Tel: +504 31626792</p>
-    </div>
-    """
-     # Firma al final del correo
     return html
-
 
 
 def obtener_token():

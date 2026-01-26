@@ -20,7 +20,7 @@ class EvaluacionProveedorModal(Toplevel):
     Ajustes: ventana más grande y textos de opciones en negro y con mayor tamaño.
     """
 
-    def __init__(self, parent, orden, proveedor, horas, equipo, callback=None):
+    def __init__(self, parent, orden, proveedor, supervisor, horas, equipo, callback=None):
         super().__init__(parent)
         self.title("Evaluación del Proveedor de Grúa")
         # Tamaño aumentado
@@ -28,7 +28,7 @@ class EvaluacionProveedorModal(Toplevel):
         self.transient(parent)
         self.grab_set()
         self.configure(bg="#FFFFFF")
-
+        self.supervisor = supervisor
         self.callback = callback
 
         # Estilos
@@ -82,7 +82,10 @@ class EvaluacionProveedorModal(Toplevel):
         self.orden_info.grid(row=2, column=1, sticky="w", padx=6, pady=6)
         self.orden_info.insert(0, f"{orden} - Horas aprobadas: {horas}")
         self.orden_info.configure(state="disabled")
-
+        
+        self.orden_compra = orden
+        self.tipo_equipo_asignado = equipo
+        self.nombre_proveedor_val = proveedor
         # 3.1 Tipo equipo (autollenar y bloqueado)
         add_label("3.1 Tipo de equipo asignado:", 3)
         self.tipo_equipo = ctk.CTkEntry(form, width=self._input_width,
@@ -220,12 +223,12 @@ class EvaluacionProveedorModal(Toplevel):
         p = doc.add_paragraph()
         texto_subrayado(p, datos.get("observaciones", "") or " ")
 
-        doc.add_paragraph("\n\nNombre: ________________________________")
-        doc.add_paragraph("Firma: _________________________________")
+        doc.add_paragraph(f"\n\nNombre: {self.supervisor[0]}")
+        
         p = doc.add_paragraph("Fecha:  ")
         texto_subrayado(p, datetime.now().strftime("%d/%m/%Y"))
 
-        nombre_archivo = f"Evaluacion_Proveedor_Grua_{datetime.now().strftime('%Y%m%d_%H%M%S')}.docx"
+        nombre_archivo = f"Evaluacion_{self.nombre_proveedor_val}_{self.orden_compra}_{self.tipo_equipo_asignado}.docx"
         doc.save(nombre_archivo)
         return nombre_archivo
 

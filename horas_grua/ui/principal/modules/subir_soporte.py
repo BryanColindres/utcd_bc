@@ -24,7 +24,7 @@ def seleccionar_archivos():
     return list(rutas)
 
 
-def verificar_carpeta_sharepoint(selected_files,carpeta_inicial, sector, carpeta_mes, carpeta_nombre):
+def verificar_carpeta_sharepoint(selected_files,carpeta_inicial, sector, carpeta_año, carpeta_mes, carpeta_nombre):
     """Verifica o crea la carpeta y luego sube los archivos seleccionados."""
 
     FLOW_LINKS = links_flows()
@@ -44,7 +44,7 @@ def verificar_carpeta_sharepoint(selected_files,carpeta_inicial, sector, carpeta
 
         if response_folder.status_code == 200:
             print("✅ Carpeta creada o ya existente. Llamando a subir archivos...")
-            subir_archivos_sharepoint(selected_files,carpeta_inicial, sector, carpeta_mes, carpeta_nombre, headers,FLOW_UPLOAD_FILE)
+            subir_archivos_sharepoint(selected_files,carpeta_inicial, sector, carpeta_año, carpeta_mes, carpeta_nombre, headers,FLOW_UPLOAD_FILE)
         else:
             print("❌ Error al crear carpeta:", response_folder.text)
             messagebox.showerror("Error", f"No se pudo crear la carpeta:\n{response_folder.text}")
@@ -52,7 +52,7 @@ def verificar_carpeta_sharepoint(selected_files,carpeta_inicial, sector, carpeta
         messagebox.showerror("Error", f"Error al conectar con PO:\n{str(e)}") #PO es Power Automate
 
 
-def subir_archivos_sharepoint(selected_files,carpeta_inicial, sector, carpeta_mes, carpeta_nombre, headers,FLOW_UPLOAD_FILE):
+def subir_archivos_sharepoint(selected_files,carpeta_inicial, sector, carpeta_año, carpeta_mes, carpeta_nombre, headers,FLOW_UPLOAD_FILE):
     """Sube los archivos seleccionados a SharePoint usando un flujo Power Automate."""
     if not selected_files:
         messagebox.showwarning("Advertencia", "No se seleccionaron archivos para subir.")
@@ -66,9 +66,9 @@ def subir_archivos_sharepoint(selected_files,carpeta_inicial, sector, carpeta_me
             with open(archivo, "rb") as f:
                 file_bytes = f.read()
                 file_base64 = base64.b64encode(file_bytes).decode("utf-8")
-
+            
             payload_file = {
-                "folderPath": f"Documentos compartidos/{carpeta_inicial}/{sector}/{carpeta_mes}/{carpeta_nombre}",
+                "folderPath": f"Documentos compartidos/{carpeta_inicial}/{sector}/{carpeta_año}/{carpeta_mes}/{carpeta_nombre}",
                 "filename": os.path.basename(archivo),
                 "filecontent": file_base64
             }

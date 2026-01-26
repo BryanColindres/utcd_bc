@@ -10,7 +10,7 @@ from .ficha_evaluacion_grua import EvaluacionProveedorModal
 
 # Ajustar path para importar db_controller
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
-from db_controller import insertar_hora_grua,validar_horas_disponibles,obtener_orden_compra,correo_enviado,obtener_sectores,obtener_id_sector,validacion_,obtener_rol,obtener_orden_compra_completo,validacion_admin,info_orden,insertar_correo,completado_orden,obtener_responsable_sector
+from db_controller import insertar_hora_grua,validar_horas_disponibles,obtener_orden_compra,correo_enviado,obtener_sectores,obtener_id_sector,validacion_,obtener_rol,obtener_orden_compra_completo,validacion_admin,info_orden,insertar_correo,completado_orden,obtener_responsable_sector,obtener_supervisor_sector
 
 class RegistrarHoras(ctk.CTkFrame):
     
@@ -291,14 +291,16 @@ class RegistrarHoras(ctk.CTkFrame):
         informacion = info_orden(orden_solo)
         nombre_proveedor = informacion.nombre_proveedor
         horas_compra = informacion.horas_compra
-        
+        supervisor = obtener_supervisor_sector(self.id_sector)
         try:
             validacion = validar_horas_disponibles(id_sector=self.id_sector, orden_compra=orden_solo, datos=datos)
+            if not validacion:
+                return
             if validacion is False:
                 return
             if validacion[0] == 'completar':
                 bandera_insercion = validacion[1]
-                self.completar_evaluacion(orden_solo, nombre_proveedor, horas_compra,equipo, datos,bandera_insercion)
+                self.completar_evaluacion(orden_solo, nombre_proveedor, supervisor, horas_compra,equipo, datos,bandera_insercion)
                 return
             if validacion[0] == 'validar_correo':
                 try:
@@ -351,7 +353,7 @@ class RegistrarHoras(ctk.CTkFrame):
 
 
 
-    def completar_evaluacion(self,orden_solo, nombre_proveedor, horas_compra,equipo, datos,bandera):
+    def completar_evaluacion(self,orden_solo, nombre_proveedor, supervisor, horas_compra,equipo, datos,bandera):
         # Abrir modal y esperar hasta que el usuario lo cierre.
         # Guardamos el resultado en self.modal_result vía callback.
         self.modal_result = None
@@ -364,7 +366,7 @@ class RegistrarHoras(ctk.CTkFrame):
             print("Callback modal recibió:", result)
             self.modal_result = result
 
-        modal = EvaluacionProveedorModal(self, orden_solo, nombre_proveedor, horas_compra, equipo, callback=recibir)
+        modal = EvaluacionProveedorModal(self, orden_solo, nombre_proveedor, supervisor, horas_compra, equipo, callback=recibir)
         self.wait_window(modal)  # Espera hasta que el modal se cierre
 
         # Después del cierre del modal: revisamos self.modal_result

@@ -388,7 +388,7 @@ class ordencompra(ctk.CTkFrame):
                 "october": "OCTUBRE","november": "NOVIEMBRE","december": "DICIEMBRE"
             }
             carpeta_mes = meses_es[fecha_dt.strftime("%B").lower()]
-
+            carpeta_año = str(fecha_dt.year)
             datos = {
                 "FECHA": fecha_str,
                 "ID_SECTOR": codigo_sector,
@@ -410,6 +410,7 @@ class ordencompra(ctk.CTkFrame):
                 self.subir_soporte(
                     "HORAS_GRUA",
                     nombre_sector,
+                    carpeta_año,
                     carpeta_mes,
                     self.orden_entry.get()
                 )
@@ -435,11 +436,11 @@ class ordencompra(ctk.CTkFrame):
         messagebox.showerror("Error", f"Ocurrió un error:\n{error}")
 
 
-    def subir_soporte(self, carpeta_inicial, sector, carpeta_mes, carpeta_nombre):
+    def subir_soporte(self, carpeta_inicial, sector,carpeta_año,carpeta_mes, carpeta_nombre):
         from .subir_soporte import verificar_carpeta_sharepoint, seleccionar_archivos
         archivos = [self.pdf]
         if archivos:
-            verificar_carpeta_sharepoint(archivos, carpeta_inicial, sector, carpeta_mes, carpeta_nombre)
+            verificar_carpeta_sharepoint(archivos, carpeta_inicial, sector, carpeta_año, carpeta_mes, carpeta_nombre)
             return True
         return False
 

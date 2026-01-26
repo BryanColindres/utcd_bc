@@ -66,11 +66,11 @@ class Login(ctk.CTkToplevel):
 
             return os.path.join(base_path, relative_path)
 
-        ruta_imagen = resource_path(os.path.join("imagenes", "grua.png"))
-        img = Image.open(ruta_imagen).resize((250, 300))
+        # ruta_imagen = resource_path(os.path.join("imagenes", "grua.png"))
+        # img = Image.open(ruta_imagen).resize((250, 300))
 
-        self.imagen_tk = ImageTk.PhotoImage(img)
-        Label(inner_frame, image=self.imagen_tk, bg="#5FD0DF").pack(pady=(100,100))
+        # self.imagen_tk = ImageTk.PhotoImage(img)
+        # Label(inner_frame, image=self.imagen_tk, bg="#5FD0DF").pack(pady=(100,100))
 
         ctk.CTkLabel(frame_izq, text="© UTCD, 2025 - Gestión de Información",
                      font=("Inter",12), fg_color="#5FD0DF", text_color="#D6E3FF").grid(row=1, column=0, sticky="s", pady=(10,10))
