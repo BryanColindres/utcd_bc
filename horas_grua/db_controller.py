@@ -530,6 +530,7 @@ def hhmm_a_decimal(hhmm):
     return float(hhmm)
 
 
+
 def horas_para_grafico(id_sector, orden_compra,datos,equipo = None):
     """"
     Verificar sino se ha pasado del 70% de horas disponibles
@@ -596,6 +597,23 @@ def horas_para_grafico(id_sector, orden_compra,datos,equipo = None):
         print("Error horas_para_grafico:", e)
         return None
     
+
+def seleccionar_usuario_actualizacion_horas_grua(id):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        f"""
+        SELECT USUARIO_ACTUALIZACION FROM HORAS_GRUA
+        WHERE id = {id}
+        """
+    )
+    result = cursor.fetchone()
+    conn.commit()
+    conn.close()
+    if result:
+        return result.USUARIO_ACTUALIZACION
+    else:
+        return None
 
 def completado_orden(orden_compra,equipo):
     conn = get_connection()

@@ -6,7 +6,7 @@ from datetime import timedelta
 import pandas as pd
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
-from db_controller import obtener_horas_grua, eliminar_horas_grua, actualizar_horas_grua,obtener_orden_compra,obtener_id_sector,obtener_rol,obtener_horas_grua_completo,obtener_sectores,obtener_responsable_sector
+from db_controller import obtener_horas_grua, eliminar_horas_grua, actualizar_horas_grua,obtener_orden_compra,obtener_id_sector,obtener_rol,obtener_horas_grua_completo,obtener_sectores,obtener_responsable_sector,seleccionar_usuario_actualizacion_horas_grua
 
 class VerReportes(ctk.CTkFrame):
     def __init__(self, parent):
@@ -407,14 +407,19 @@ class VerReportes(ctk.CTkFrame):
         item = selected[0]
         valores = self.tree.item(item)['values']
 
-        self.fecha_uso = valores[1]
-        fecha_limite = datetime.strptime(self.fecha_uso, "%Y-%m-%d").date() 
-        fecha_uso = datetime.now().date() - timedelta(days=1)
-        print(f"Fecha de uso: {fecha_uso}, Fecha límite: {fecha_limite}")
-        if fecha_limite < fecha_uso:
-            messagebox.showerror("Error", "No se puede editar un registro con más de 24 h de antigüedad.")
-            return
+        insercion = seleccionar_usuario_actualizacion_horas_grua(valores[0])  # valores[0] es el ID del registro
         
+        self.fecha_insercion = insercion.split(" -  ")[1]
+        
+#        self.fecha_uso = valores[1]
+        fecha_insercion = datetime.strptime(self.fecha_insercion, "%Y-%m-%d %H:%M:%S").date() 
+        fecha_limite = datetime.now().date() - timedelta(days=1)
+        print(f"Fecha de inserción: {fecha_insercion}, Fecha límite: {fecha_limite}")
+        # solo se permite editar fechas de uso que sean menor a 24 horas desde la fecha de inserción
+        if fecha_insercion < fecha_limite:
+            messagebox.showwarning("Atención", "Solo se pueden editar registros de uso de grúa con fecha de uso menor a 24 horas desde la fecha de inserción.")
+            return
+
         # --- Ventana de edición ---
         edit_win = ctk.CTkToplevel(self)
         edit_win.title(f"Editar ITEM {valores[0]}")
