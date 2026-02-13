@@ -293,6 +293,25 @@ def actualizar_horas_grua(FECHA_UTILIZACION, HORA_DE_INICIO,CANTIDAD_UTILIZADA,H
         
 # ---------------- Insertar un registro ----------------
 
+def sobrepasa24horas(orden_compra, id_sector, tipo_equipo,fecha_utilizacion):
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT SUM(DATEDIFF(MINUTE, HORA_DE_INICIO, HORA_FINAL)) / 60.0 as TotalHoras
+            FROM HORAS_GRUA
+            WHERE orden_compra = ? AND id_Sector = ? AND tipo_equipo = ? AND Activo = 1 AND FECHA_UTILIZACION = ?
+            """,
+            orden_compra, id_sector, tipo_equipo,fecha_utilizacion
+        )
+        total_horas = cursor.fetchone()[0] or 0
+        conn.close()
+        return total_horas > 24
+    except Exception as e:
+        messagebox.showerror("Error", f"No se pudo verificar las horas utilizadas:\n{str(e)}")
+        return False  # Para evitar insertar si hubo error
+
 def existe_registro(datos):
     """
     Verifica si ya existe un registro idéntico en la tabla horas_grua
@@ -310,8 +329,6 @@ def existe_registro(datos):
               AND HORA_DE_INICIO = ?
               AND HORA_FINAL = ?
               AND CANTIDAD_UTILIZADA = ?
-              AND JUSTIFICACION = ?
-              AND RESPONSABLE = ?
               AND ORDEN_COMPRA = ?
               AND Activo = 1
               AND TIPO_EQUIPO = ?
@@ -322,8 +339,6 @@ def existe_registro(datos):
             datos["HORA_DE_INICIO"],
             datos["HORA_FINAL"],
             datos["CANTIDAD_UTILIZADA"],
-            datos["JUSTIFICACION"],
-            datos["RESPONSABLE"],
             datos["ORDEN_COMPRA"],
             datos["TIPO_EQUIPO"]
         )
@@ -343,6 +358,9 @@ def insertar_hora_grua(datos):
     """
     if existe_registro(datos):
         messagebox.showwarning("Aviso", "Ya existe un registro idéntico en la base de datos.")
+        return False
+    if sobrepasa24horas(datos["ORDEN_COMPRA"], datos["ID_SECTOR"], datos["TIPO_EQUIPO"],datos["FECHA_UTILIZACION"]):
+        messagebox.showwarning("Aviso", "La cantidad de horas utilizadas para esta orden de compra ya supera las 24 horas en el mismo día. No se puede agregar más horas para esta orden en este día.")
         return False
 
     try:

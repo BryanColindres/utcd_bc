@@ -45,8 +45,15 @@ class EvaluacionProveedorModal(Toplevel):
         ctk.CTkLabel(self, text="FICHA DE EVALUACIÓN DE SERVICIO DE GRÚA",
                      font=self._title_font, text_color="#070707").pack(pady=(18, 8))
 
-        form = ctk.CTkFrame(self, fg_color="white", corner_radius=10)
+        form = ctk.CTkScrollableFrame(
+            self,
+            fg_color="white",
+            corner_radius=10,
+            width=960,
+            height=820
+        )
         form.pack(fill="both", expand=True, padx=20, pady=12)
+
         form.grid_columnconfigure(0, weight=0, minsize=360)
         form.grid_columnconfigure(1, weight=1)
 
