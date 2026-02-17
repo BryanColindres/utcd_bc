@@ -412,8 +412,8 @@ class VerReportes(ctk.CTkFrame):
         self.fecha_insercion = insercion.split(" -  ")[1]
         
 #        self.fecha_uso = valores[1]
-        fecha_insercion = datetime.strptime(self.fecha_insercion, "%Y-%m-%d %H:%M:%S").date() 
-        fecha_limite = datetime.now().date() - timedelta(days=1)
+        fecha_insercion = datetime.strptime(self.fecha_insercion, "%Y-%m-%d %H:%M:%S")
+        fecha_limite = datetime.now() - timedelta(days=1)
         print(f"Fecha de inserción: {fecha_insercion}, Fecha límite: {fecha_limite}")
         # solo se permite editar fechas de uso que sean menor a 24 horas desde la fecha de inserción
         if fecha_insercion < fecha_limite:

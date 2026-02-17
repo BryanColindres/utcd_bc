@@ -451,7 +451,7 @@ ultimo_gestion AS (
         Circuito,
         MAX(Fecha_apertura) AS Ultimo_mant_gestion
     FROM GestionControl.dbo.BITACORA_SCADA
-    WHERE Registro_interrupcion = 16
+    WHERE Registro_interrupcion in ('16','45')
     GROUP BY Circuito
 ),
 
@@ -460,7 +460,7 @@ ultimo_calidad AS (
         Circuito,
         MAX(Fecha_apertura) AS Ultimo_mant_calidad
     FROM CalidadEnergia.dbo.BITACORA_SCADA
-    WHERE Registro_interrupcion = 16
+    WHERE Registro_interrupcion in ('16','45')
     GROUP BY Circuito
 ),
 
@@ -488,14 +488,14 @@ sin_mant_reciente AS (
         SELECT 1
         FROM GestionControl.dbo.BITACORA_SCADA b2
         WHERE b2.Circuito = i.Circuito
-          AND b2.Registro_interrupcion = 16
+          AND b2.Registro_interrupcion IN ('16','45')
           AND b2.Fecha_apertura > DATEADD(MONTH, -6, GETDATE())
     )
       AND NOT EXISTS (
         SELECT 1
         FROM CalidadEnergia.dbo.BITACORA_SCADA b3
         WHERE b3.Circuito = i.Circuito
-          AND b3.Registro_interrupcion = 16
+          AND b3.Registro_interrupcion IN ('16','45')
           AND b3.Fecha_apertura > DATEADD(MONTH, -6, GETDATE())
     )
 )
@@ -577,8 +577,9 @@ def envia_correo():
         print("Token de acceso obtenido correctamente.")
         data = obtener_circuitos_sin_mantenimiento(cursor_global, meses=6)
         body = generar_tabla_html(data)
-        to_addresses = ["oscar.posadas@eneeutcd.hn"]
-        cc_addresses = ["elmer.bustillo@eneeutcd.hn","edwin.carrasco@eneeutcd.hn","daniel.garcia@eneeutcd.hn","laura.munguia@eneeutcd.hn","monica.rodriguez@eneeutcd.hn","larissa.aceituno@eneeutcd.hn","bryan.colindres@eneeutcd.hn","cristian.umanzor@eneeutcd.hn","david.rosales@eneeutcd.hn"]
+        to_addresses = ["bryan.colindres@eneeutcd.hn"]
+        cc_addresses = None
+        # cc_addresses = ["elmer.bustillo@eneeutcd.hn","edwin.carrasco@eneeutcd.hn","daniel.garcia@eneeutcd.hn","laura.munguia@eneeutcd.hn","monica.rodriguez@eneeutcd.hn","larissa.aceituno@eneeutcd.hn","bryan.colindres@eneeutcd.hn","cristian.umanzor@eneeutcd.hn","david.rosales@eneeutcd.hn"]
         
         send_email(access_token, "CIRCUITOS SIN MANTENIMIENTO EN LOS ULTIMOS 6 MESES", body, to_addresses, attachment_path=None,cc_addresses=cc_addresses)
         return True
