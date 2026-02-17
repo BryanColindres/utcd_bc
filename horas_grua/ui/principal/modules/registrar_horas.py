@@ -42,7 +42,7 @@ class RegistrarHoras(ctk.CTkFrame):
         self.fecha_entry = ctk.CTkEntry(form_frame, placeholder_text="YYYY-MM-DD", width=250, fg_color="#EFEFEF", text_color="black")
         self.fecha_entry.grid(row=3, column=1, sticky="w", padx=10, pady=8)
         ctk.CTkButton(form_frame, text="📅", width=30, fg_color="#5E95FF", hover_color="#4780E0", command=self.abrir_calendario).grid(row=3, column=2, sticky="w", padx=5)
-        self.fecha_entry.bind("<FocusOut>", lambda e: self.validar_fecha(self.fecha_entry))
+        #self.fecha_entry.bind("<FocusOut>", lambda e: self.validar_fecha(self.fecha_entry))
         
         # HORA DE INICIO y HORA FINAL
         ctk.CTkLabel(form_frame, text="HORA DE INICIO (HH:MM):", font=("TT NORMS PRO",14,"bold"),text_color="#87898F").grid(row=4, column=0, sticky="e", padx=10, pady=8)
@@ -156,7 +156,10 @@ class RegistrarHoras(ctk.CTkFrame):
         top.geometry(f"{ancho_ventana}x{alto_ventana}+{x}+{y}")
 
         # Crear calendario
-        cal = Calendar(top, date_pattern="yyyy-mm-dd")
+        cal = Calendar(top 
+                       ,date_pattern="yyyy-mm-dd"
+                       ,maxdate=datetime.today()
+                       )
         cal.pack(padx=10, pady=10, expand=True, fill="both")
 
         # Botón seleccionar
@@ -174,34 +177,34 @@ class RegistrarHoras(ctk.CTkFrame):
         ).pack(pady=10)
 
 
-    def validar_fecha(self, entry):
-        fecha_texto = entry.get().strip()
-        if not fecha_texto:
-            # Permitir campo vacío sin error
-            entry.configure(fg_color="#EFEFEF")
-            return
+    # def validar_fecha(self, entry):
+    #     fecha_texto = entry.get().strip()
+    #     if not fecha_texto:
+    #         # Permitir campo vacío sin error
+    #         entry.configure(fg_color="#EFEFEF")
+    #         return
         
-        try:
-            fecha = datetime.strptime(fecha_texto, "%Y-%m-%d")
-            # opcional: validar que no sea fecha futura
-            hoy = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-            if fecha > hoy:
-                entry.configure(fg_color="#FDEDEC")
-                if not getattr(self, "mensaje_abierto", False):
-                    self.mensaje_abierto = True
-                    messagebox.showerror("Error", "La fecha no puede ser futura")
-                    self.mensaje_abierto = False
-                return
+    #     try:
+    #         fecha = datetime.strptime(fecha_texto, "%Y-%m-%d")
+    #         # opcional: validar que no sea fecha futura
+    #         hoy = datetime.today().date()
+    #         if fecha > hoy:
+    #             entry.configure(fg_color="#FDEDEC")
+    #             if not getattr(self, "mensaje_abierto", False):
+    #                 self.mensaje_abierto = True
+    #                 messagebox.showerror("Error", "La fecha no puede ser futura")
+    #                 self.mensaje_abierto = False
+    #             return
             
-            # Fecha válida
-            entry.configure(fg_color="#EFEFEF")
+    #         # Fecha válida
+    #         entry.configure(fg_color="#EFEFEF")
 
-        except ValueError:
-            entry.configure(fg_color="#FDEDEC")
-            if not getattr(self, "mensaje_abierto", False):
-                self.mensaje_abierto = True
-                messagebox.showerror("Error", "Ingrese la fecha en formato YYYY-MM-DD")
-                self.mensaje_abierto = False
+    #     except ValueError:
+    #         entry.configure(fg_color="#FDEDEC")
+    #         if not getattr(self, "mensaje_abierto", False):
+    #             self.mensaje_abierto = True
+    #             messagebox.showerror("Error", "Ingrese la fecha en formato YYYY-MM-DD")
+    #             self.mensaje_abierto = False
 
 
     def validar_hora(self, entry):
@@ -247,14 +250,47 @@ class RegistrarHoras(ctk.CTkFrame):
             except:
                 pass
 
+    def validar_fecha(self, entry):
+        fecha_texto = entry.get().strip()
+        if not fecha_texto:
+            # Permitir campo vacío sin error
+            entry.configure(fg_color="#EFEFEF")
+            return 
+        try:
+            fecha = datetime.strptime(fecha_texto, "%Y-%m-%d")
+            # opcional: validar que no sea fecha futura
+            hoy = datetime.today().date()
+            print("Fecha ingresada:", fecha.date(), "Fecha actual:", hoy)
+            if fecha.date() > hoy:
+                entry.configure(fg_color="#FDEDEC")
+                if not getattr(self, "mensaje_abierto", False):
+                    self.mensaje_abierto = True
+                    messagebox.showerror("Error", "La fecha no puede ser futura")
+                    self.mensaje_abierto = False
+                    return "error"
+            
+            # Fecha válida
+            entry.configure(fg_color="#EFEFEF")
+            return "ok"
+            
+            # Fecha válida
+        except:
+                entry.configure(fg_color="#FDEDEC")
+                if not getattr(self, "mensaje_abierto", False):
+                    self.mensaje_abierto = True
+                    messagebox.showerror("Error", "Ingrese la fecha en formato YYYY-MM-DD")
+                    self.mensaje_abierto = False
+                    return "error"
 
     def guardar_registro(self):
         # Verificar campos obligatorios vacíos
         if not self.fecha_entry.get() or not self.hora_inicio.get() or not self.hora_final.get() \
             or not self.resp_entry.get() or not self.just_entry.get("1.0","end-1c"):
             messagebox.showerror("Error","Complete todos los campos obligatorios")
+            return 
+        mensaje_error = self.validar_fecha(self.fecha_entry)
+        if mensaje_error == "error":
             return
-
         # Verificar errores de validación visual (color de fondo)
         campos_error = []
         if self.fecha_entry.cget("fg_color") == "#FDEDEC":
