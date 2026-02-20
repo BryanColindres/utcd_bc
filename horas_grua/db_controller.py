@@ -352,6 +352,43 @@ def existe_registro(datos):
             messagebox.showerror("Error", f"No se pudo verificar el registro:\n{str(e)}")
         return True  # Para evitar insertar si hubo error
 
+def hay_solapamiento(orden_compra, id_sector, tipo_equipo, fecha_utilizacion, hora_inicio, hora_final):
+    """Verifica si el nuevo intervalo (hora_inicio-hora_final) se solapa
+    con algún registro existente para la misma orden/sector/equipo y fecha.
+    Retorna True si hay solapamiento, False si no.
+    """
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        # Comprobación: existe registro con inicio < nuevo_fin AND fin > nuevo_inicio
+        cursor.execute(
+            """
+            SELECT COUNT(1) FROM HORAS_GRUA
+            WHERE FECHA_UTILIZACION = ?
+              AND ORDEN_COMPRA = ?
+              AND id_Sector = ?
+              AND tipo_equipo = ?
+              AND Activo = 1
+              AND (
+                    CONVERT(time, HORA_DE_INICIO) < CONVERT(time, ?) 
+                    AND CONVERT(time, HORA_FINAL) > CONVERT(time, ?)
+                  )
+            """,
+            fecha_utilizacion,
+            orden_compra,
+            id_sector,
+            tipo_equipo,
+            hora_final,
+            hora_inicio,
+        )
+        count = cursor.fetchone()[0]
+        conn.close()
+        return count > 0
+    except Exception as e:
+        messagebox.showerror("Error", f"No se pudo verificar solapamientos:\n{str(e)}")
+        # En caso de error, devolvemos True para prevenir inserciones peligrosas
+        return True
+
 def insertar_hora_grua(datos):
     """
     Inserta un registro en la tabla horas_grua si no existe previamente
@@ -916,6 +953,15 @@ def validar_horas_disponibles(id_sector, orden_compra,datos):
     Verificar sino se ha pasado del 70% de horas disponibles
     """
     equipo = datos['TIPO_EQUIPO']
+    # Verificar solapamiento de horas en la misma fecha/orden/sector/equipo
+    try:
+        if hay_solapamiento(orden_compra, id_sector, equipo, datos["FECHA_UTILIZACION"], datos["HORA_DE_INICIO"], datos["HORA_FINAL"]):
+            messagebox.showerror("Error", "El intervalo de horas se solapa con un registro existente para esta fecha/orden/equipo.")
+            return False
+    except Exception as e:
+        # si hay error al verificar solapamiento, abortamos por seguridad
+        messagebox.showerror("Error", f"No se pudo verificar solapamientos:\n{e}")
+        return False
     def validacion():
         conn = get_connection()
         cursor = conn.cursor()

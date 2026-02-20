@@ -74,7 +74,7 @@ class RegistrarHoras(ctk.CTkFrame):
 
         # ORDEN COMPRA
         ctk.CTkLabel(form_frame, text="ORDEN DE COMPRA:", font=("TT NORMS PRO",14,"bold"),text_color="#87898F").grid(row=9, column=0, sticky="e", padx=10, pady=8)
-        self.orden_entry = ctk.CTkComboBox(form_frame, values=self.ordenes_compras_(), width=280, fg_color="#EFEFEF",text_color="#87898F",state="readonly")
+        self.orden_entry = ctk.CTkComboBox(form_frame, values=[], width=280, fg_color="#EFEFEF",text_color="#87898F",state="readonly")
         self.orden_entry.grid(row=9, column=1, columnspan=2, sticky="w", padx=10, pady=8)
 
         # BOTONES
@@ -82,10 +82,22 @@ class RegistrarHoras(ctk.CTkFrame):
         self.btn_guardar.grid(row=10, column=1, pady=30)
         self.btn_borrar = ctk.CTkButton(form_frame, text="Borrar Todo", font=("TT NORMS PRO",16,"bold"), fg_color="#F1F1F4",text_color='#616161', hover_color="#EFF0F8", command=self.borrar_todo, width=150,height=40)
         self.btn_borrar.grid(row=10, column=0, pady=30)
+        
+        # Cargar órdenes después de que la UI se renderice
+        self.after(100, self._cargar_ordenes_async)
 
     def obtener_responsables(self):
         supervisores = obtener_responsable_sector(self.id_sector)
         return supervisores
+    
+    def _cargar_ordenes_async(self):
+        """Carga las órdenes de compra sin bloquear la UI."""
+        try:
+            ordenes = self.ordenes_compras_()
+            self.orden_entry.configure(values=ordenes)
+        except Exception as e:
+            print(f"Error cargando órdenes: {e}")
+            self.orden_entry.configure(values=["ERROR"])
     
     def ordenes_compras_(self):
         print("Sector ID en registrar horas:", self.id_sector)
@@ -330,9 +342,13 @@ class RegistrarHoras(ctk.CTkFrame):
         supervisor = obtener_supervisor_sector(self.id_sector)
         try:
             validacion = validar_horas_disponibles(id_sector=self.id_sector, orden_compra=orden_solo, datos=datos)
+            print("Resultado de validar_horas_disponibles:", validacion)
             if not validacion:
+                self.borrar_todo()
                 return
-            if validacion is False:
+            if validacion == False:
+                print("borrando las coas")
+                self.borrar_todo()
                 return
             if validacion[0] == 'completar':
                 bandera_insercion = validacion[1]
@@ -343,6 +359,7 @@ class RegistrarHoras(ctk.CTkFrame):
                     resultado = validacion[1]
                     if correo_enviado(self.id_sector, orden_solo,equipo):
                         messagebox.showinfo("Aviso", "Quedan menos del 70% de horas disponibles, el correo de notificación ya se ha enviado para esta orden.")
+                        self.borrar_todo()
                         if resultado.Proporcion_Usado == 1:
                             messagebox.showwarning("Advertencia","Ha alcanzado el 100% de las horas disponibles en este sector y orden de compra. No se pueden registrar más horas.")
                         return 
@@ -382,6 +399,7 @@ class RegistrarHoras(ctk.CTkFrame):
                     except Exception as e_send:
                         print(f"[guardar_registro] Error enviando correo: {e_send}")
                         messagebox.showerror("Error", "No se pudo enviar el correo, por favor contacte al administrador.")
+            self.borrar_todo()
 
             self.ordenes_compras_()
         except Exception as e:
@@ -444,6 +462,7 @@ class RegistrarHoras(ctk.CTkFrame):
         # no insertabas automáticamente; si quieres insertar la hora ya (porque ya completó evaluación), haz:
         if bandera == 'insertar_datos':
             insertar_hora_grua(datos)
+            self.borrar_todo()
         # if insertar:
         #     print("Registro guardado correctamente después de completar evaluación.")
         
@@ -454,6 +473,7 @@ class RegistrarHoras(ctk.CTkFrame):
 
 
     def borrar_todo(self):
+        print("Borrando campos del formulario...")
         self.fecha_entry.delete(0,"end")
         self.hora_inicio.delete(0,"end")
         self.hora_final.delete(0,"end")
