@@ -244,7 +244,7 @@ def verificar_orden_compra(orden_compra):
         cursor = conn.cursor()
         cursor.execute(
             "SELECT COUNT(*) FROM HORAS_GRUA_ORDEN_COMPRA WHERE ORDEN_COMPRA = ? AND ACTIVO=1",
-            orden_compra
+            (orden_compra,)
         )
         count = cursor.fetchone()[0]
         conn.close()
@@ -294,6 +294,7 @@ def actualizar_horas_grua(FECHA_UTILIZACION, HORA_DE_INICIO,CANTIDAD_UTILIZADA,H
 # ---------------- Insertar un registro ----------------
 
 def sobrepasa24horas(orden_compra, id_sector, tipo_equipo,fecha_utilizacion):
+    print('ENTRE A SOBRE PASA 24 HORAS')
     try:
         conn = get_connection()
         cursor = conn.cursor()
@@ -301,9 +302,9 @@ def sobrepasa24horas(orden_compra, id_sector, tipo_equipo,fecha_utilizacion):
             """
             SELECT SUM(DATEDIFF(MINUTE, HORA_DE_INICIO, HORA_FINAL)) / 60.0 as TotalHoras
             FROM HORAS_GRUA
-            WHERE orden_compra = ? AND id_Sector = ? AND tipo_equipo = ? AND Activo = 1 AND FECHA_UTILIZACION = ?
+            WHERE orden_compra = ? AND id_Sector = ? AND tipo_equipo = ? AND Activo = 1 AND FECHA_UTILIZACION = ? and FECHA_FINALIZACION = ?
             """,
-            orden_compra, id_sector, tipo_equipo,fecha_utilizacion
+            (orden_compra, id_sector, tipo_equipo, fecha_utilizacion, fecha_utilizacion)
         )
         total_horas = cursor.fetchone()[0] or 0
         conn.close()
@@ -313,40 +314,46 @@ def sobrepasa24horas(orden_compra, id_sector, tipo_equipo,fecha_utilizacion):
         return False  # Para evitar insertar si hubo error
 
 def existe_registro(datos):
+    print('ENTRE A EXISTE REGISTRO')
     """
     Verifica si ya existe un registro idéntico en la tabla horas_grua
     Retorna True si existe, False si no
     """
     try:
+        print("llamando al conexion para verificar si existe registro...")
         conn = get_connection()
         cursor = conn.cursor()
+        print('los datos que llegan a existe registro son ',datos)
         cursor.execute(
             """
             SELECT COUNT(*) FROM horas_grua
             WHERE FECHA_UTILIZACION = ?
+              AND FECHA_FINALIZACION = ?
               AND SERVICIO_UTILIZADO = ?
               AND UNIDAD_DE_MEDIDA = ?
               AND HORA_DE_INICIO = ?
               AND HORA_FINAL = ?
-              AND CANTIDAD_UTILIZADA = ?
               AND ORDEN_COMPRA = ?
               AND Activo = 1
               AND TIPO_EQUIPO = ?
             """,
-            datos["FECHA_UTILIZACION"],
+            (datos["FECHA_UTILIZACION"],
+            datos["FECHA_FINALIZACION"],
             datos["SERVICIO_UTILIZADO"],
             datos["UNIDAD_DE_MEDIDA"],
             datos["HORA_DE_INICIO"],
             datos["HORA_FINAL"],
-            datos["CANTIDAD_UTILIZADA"],
             datos["ORDEN_COMPRA"],
-            datos["TIPO_EQUIPO"]
+            datos["TIPO_EQUIPO"])
         )
+        print("Consulta ejecutada, obteniendo resultado...")
         count = cursor.fetchone()[0]
         conn.close()
+        print(f"Verificación de registro existente: {count} registros encontrados.")
         return count > 0
     except Exception as e:
-        if 'date and/or' in e:
+        print("Error al verificar registro existente:", e)
+        if 'date and/or' in str(e):
             messagebox.showerror("Error", f"No se pudo verificar, revisar la Fecha ingresada")
         else:   
             messagebox.showerror("Error", f"No se pudo verificar el registro:\n{str(e)}")
@@ -390,6 +397,7 @@ def hay_solapamiento(orden_compra, id_sector, tipo_equipo, fecha_utilizacion, ho
         return True
 
 def insertar_hora_grua(datos):
+    print('ENTRE A INSERTAR HORA GRUA')
     """
     Inserta un registro en la tabla horas_grua si no existe previamente
     """
@@ -401,6 +409,7 @@ def insertar_hora_grua(datos):
         return False
 
     try:
+        print("Intentando insertar nuevo registro en horas_grua...")
         fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         usuario = get_usuario_actual()
         concatenacion = f'Usuario: {usuario} -  {fecha}'
@@ -410,10 +419,11 @@ def insertar_hora_grua(datos):
         cursor.execute(
             """
             INSERT INTO horas_grua 
-            (FECHA_UTILIZACION, SERVICIO_UTILIZADO, UNIDAD_DE_MEDIDA, HORA_DE_INICIO, HORA_FINAL, CANTIDAD_UTILIZADA, JUSTIFICACION, RESPONSABLE,ID_SECTOR,ORDEN_COMPRA,ACTIVO,USUARIO_INSERCION,TIPO_EQUIPO) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?,?,?,1,?,?)
+            (FECHA_UTILIZACION,FECHA_FINALIZACION, SERVICIO_UTILIZADO, UNIDAD_DE_MEDIDA, HORA_DE_INICIO, HORA_FINAL, CANTIDAD_UTILIZADA, JUSTIFICACION, RESPONSABLE,ID_SECTOR,ORDEN_COMPRA,ACTIVO,USUARIO_INSERCION,TIPO_EQUIPO) 
+            VALUES (?,?, ?, ?, ?, ?, ?, ?, ?,?,?,1,?,?)
             """,
-            datos["FECHA_UTILIZACION"],
+            (datos["FECHA_UTILIZACION"],
+             datos["FECHA_FINALIZACION"],
             datos["SERVICIO_UTILIZADO"],
             datos["UNIDAD_DE_MEDIDA"],
             datos["HORA_DE_INICIO"],
@@ -424,13 +434,26 @@ def insertar_hora_grua(datos):
             datos["ID_SECTOR"],
             datos["ORDEN_COMPRA"],
             concatenacion,
-            datos["TIPO_EQUIPO"]
+            datos["TIPO_EQUIPO"])
         )
         conn.commit()
         conn.close()
         return True
     except Exception as e:
-        messagebox.showerror("Error", f"No se pudo guardar el registro:\n{str(e)}")
+        error_msg = str(e)
+
+        if "Conversion failed when converting date and/or time" in error_msg:
+            messagebox.showerror(
+                "Error de tiempo",
+                "La hora ingresada supera las 24 horas.\n\n"
+                "SQL Server no permite valores mayores a 23:59:59 en campos tipo TIME.\n\n"
+                "Solución:\n"
+                "- Divide el registro en múltiples períodos (por ejemplo: 23:59:59 y el resto), o\n"
+                "- Ajusta la cantidad de horas ingresadas."
+            )
+        else:
+            messagebox.showerror("Error", f"No se pudo guardar el registro:\n{error_msg}")
+
         return False
 
 def existe_orden(datos):
@@ -479,14 +502,14 @@ def insertar_ORDEN_grua(datos):
             (FECHA, ID_SECTOR, ORDEN_COMPRA, CANTIDAD_HORAS,TIPO_EQUIPO,PROVEEDOR,CODIGO_PROVEEDOR,USUARIO_INSERCION,ACTIVO) 
             VALUES (?, ?, ?, ?, ?,?,?,?,1)
             """,
-            datos["FECHA"],
+            (datos["FECHA"],
             datos["ID_SECTOR"],
             datos["ORDEN_COMPRA"],
             datos["HORAS"],
             datos["TIPO_EQUIPO"],
             datos["PROVEEDOR"],
             datos["CODIGO_PROVEEDOR"],
-            concatenacion
+            concatenacion)
         )
         conn.commit()
         conn.close()
@@ -538,11 +561,11 @@ def insertar_orden_en_ficha(datos):
             (nombre_proveedor, orden_info, horas_compra,completado,codigo_proveedor,tipo_equipo) 
             VALUES (?, ?, ?,'NO',?,?)
             """,
-            datos["PROVEEDOR"],
+            (datos["PROVEEDOR"],
             datos["ORDEN_COMPRA"],
             datos["HORAS"],
             datos["CODIGO_PROVEEDOR"],
-            datos["TIPO_EQUIPO"]
+            datos["TIPO_EQUIPO"])
         )
         conn.commit()
         conn.close()
@@ -963,6 +986,7 @@ def validar_horas_disponibles(id_sector, orden_compra,datos):
         messagebox.showerror("Error", f"No se pudo verificar solapamientos:\n{e}")
         return False
     def validacion():
+        print("Ejecutando validación de horas disponibles...")
         conn = get_connection()
         cursor = conn.cursor()
 
@@ -1033,7 +1057,7 @@ def validar_horas_disponibles(id_sector, orden_compra,datos):
             @disponible AS Disponible_Decimal,
             @hhmm AS Disponible_HHMM;
         """
-
+        print(sql)
         cursor.execute(sql, params)
         result = cursor.fetchone()
 
@@ -1066,6 +1090,7 @@ def validar_horas_disponibles(id_sector, orden_compra,datos):
                 messagebox.showerror("Error", f"La cantidad de horas a registrar ({datos['CANTIDAD_UTILIZADA']} h) excede las horas disponibles ({resultado.Disponible_HHMM} h) para esta orden de compra.")
                 return False
             if proporcion >= 0.7 and int(proporcion) <1:
+                print("Proporción mayor o igual al 70% pero menor al 100%, insertando y enviando correo...")
                 if insertar_hora_grua(datos): 
                     # print("Registro insertado, verificando correo..."  )           
                     # if correo_enviado(id_sector, orden_compra,equipo):
@@ -1092,8 +1117,10 @@ def validar_horas_disponibles(id_sector, orden_compra,datos):
                     #     insertado = insertar_correo(id_sector, orden_compra,equipo)
                     #     return insertado
             if proporcion < 0.7:
+                print("Proporción menor al 70%, insertando sin enviar correo...")
                 if insertar_hora_grua(datos):
                     resultado = validacion()
+                    print(f'voy a mostrar mensaje sin enviar correo {resultado}')
                     print('el resulrado anes de propocuon es',resultado)
                     messagebox.showinfo(
                         "Éxito",
@@ -1152,13 +1179,11 @@ def insertar_correo(id_sector, orden_compra,equipo):
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute(
-            f"""
+            """
             INSERT INTO HORAS_GRUA_CORREO (ID_SECTOR, ORDEN_COMPRA, CORREO,tipo_equipo) 
             VALUES (?, ?, 1,?)
             """,
-            id_sector,
-            orden_compra,
-            equipo
+            (id_sector, orden_compra, equipo)
         )
         conn.commit()
         conn.close()

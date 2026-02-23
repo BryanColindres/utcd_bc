@@ -1,10 +1,11 @@
 import customtkinter as ctk
-from tkinter import messagebox
+from tkinter import messagebox, Spinbox
 from tkinter import Toplevel
 from tkcalendar import Calendar
 from datetime import datetime
 import sys
 import os
+import threading
 from .enviar_correo import envia_correo
 from .ficha_evaluacion_grua import EvaluacionProveedorModal
 
@@ -37,51 +38,59 @@ class RegistrarHoras(ctk.CTkFrame):
         ctk.CTkLabel(form_frame, text="UNIDAD DE MEDIDA:", font=("TT NORMS PRO",14,"bold"),text_color="#87898F").grid(row=2, column=0, sticky="e", padx=10, pady=8)
         ctk.CTkLabel(form_frame, text="Horas", font=("TT NORMS PRO",14), fg_color="#EFEFEF", text_color="#87898F", corner_radius=8, width=250, height=30).grid(row=2, column=1, columnspan=2, sticky="w", padx=10, pady=8)
 
-        # FECHA con botón para calendario
-        ctk.CTkLabel(form_frame, text="FECHA DE UTILIZACION:", font=("TT NORMS PRO",14,"bold"),text_color="#87898F").grid(row=3, column=0, sticky="e", padx=10, pady=8)
+        # FECHA inicio con botón para calendario
+        ctk.CTkLabel(form_frame, text="FECHA INICIO:", font=("TT NORMS PRO",14,"bold"),text_color="#87898F").grid(row=3, column=0, sticky="e", padx=10, pady=8)
         self.fecha_entry = ctk.CTkEntry(form_frame, placeholder_text="YYYY-MM-DD", width=250, fg_color="#EFEFEF", text_color="black")
         self.fecha_entry.grid(row=3, column=1, sticky="w", padx=10, pady=8)
-        ctk.CTkButton(form_frame, text="📅", width=30, fg_color="#5E95FF", hover_color="#4780E0", command=self.abrir_calendario).grid(row=3, column=2, sticky="w", padx=5)
+        ctk.CTkButton(form_frame, text="📅", width=30, fg_color="#5E95FF", hover_color="#4780E0", command=lambda: self.abrir_calendario("inicio")).grid(row=3, column=2, sticky="w", padx=5)
         #self.fecha_entry.bind("<FocusOut>", lambda e: self.validar_fecha(self.fecha_entry))
         
+        # FECHA FINAL con botón para calendario
+        ctk.CTkLabel(form_frame, text="FECHA FINAL:", font=("TT NORMS PRO",14,"bold"),text_color="#87898F").grid(row=4, column=0, sticky="e", padx=10, pady=8)
+        self.fecha_final_entry = ctk.CTkEntry(form_frame, placeholder_text="YYYY-MM-DD", width=250, fg_color="#EFEFEF", text_color="black")
+        self.fecha_final_entry.grid(row=4, column=1, sticky="w", padx=10, pady=8)
+        ctk.CTkButton(form_frame, text="📅", width=30, fg_color="#5E95FF", hover_color="#4780E0", command=lambda: self.abrir_calendario("final")).grid(row=4, column=2, sticky="w", padx=5)
+        
+        self.fecha_entry.bind("<KeyRelease>", lambda e: self.calcular_cantidad())
+        self.fecha_final_entry.bind("<KeyRelease>", lambda e: self.calcular_cantidad())
         # HORA DE INICIO y HORA FINAL
-        ctk.CTkLabel(form_frame, text="HORA DE INICIO (HH:MM):", font=("TT NORMS PRO",14,"bold"),text_color="#87898F").grid(row=4, column=0, sticky="e", padx=10, pady=8)
+        ctk.CTkLabel(form_frame, text="HORA DE INICIO (HH:MM):", font=("TT NORMS PRO",14,"bold"),text_color="#87898F").grid(row=5, column=0, sticky="e", padx=10, pady=8)
         self.hora_inicio = ctk.CTkEntry(form_frame, placeholder_text="HH:MM", width=250, fg_color="#EFEFEF", text_color="#87898F")
-        self.hora_inicio.grid(row=4, column=1, columnspan=2, sticky="w", padx=10, pady=8)
+        self.hora_inicio.grid(row=5, column=1, columnspan=2, sticky="w", padx=10, pady=8)
         self.hora_inicio.bind("<FocusOut>", lambda e: self.validar_hora(self.hora_inicio))
 
-        ctk.CTkLabel(form_frame, text="HORA FINAL (HH:MM):", font=("TT NORMS PRO",14,"bold"),text_color="#87898F").grid(row=5, column=0, sticky="e", padx=10, pady=8)
+        ctk.CTkLabel(form_frame, text="HORA FINAL (HH:MM):", font=("TT NORMS PRO",14,"bold"),text_color="#87898F").grid(row=6, column=0, sticky="e", padx=10, pady=8)
         self.hora_final = ctk.CTkEntry(form_frame, placeholder_text="HH:MM", width=250, fg_color="#EFEFEF", text_color="#87898F")
-        self.hora_final.grid(row=5, column=1, columnspan=2, sticky="w", padx=10, pady=8)
+        self.hora_final.grid(row=6, column=1, columnspan=2, sticky="w", padx=10, pady=8)
         self.hora_final.bind("<FocusOut>", lambda e: self.validar_hora(self.hora_final))
 
         self.hora_inicio.bind("<KeyRelease>", lambda e: self.calcular_cantidad())
         self.hora_final.bind("<KeyRelease>", lambda e: self.calcular_cantidad())
         # CANTIDAD USADA
-        ctk.CTkLabel(form_frame, text="CANTIDAD UTILIZADA:", font=("TT NORMS PRO",14,"bold"),text_color="#87898F").grid(row=6, column=0, sticky="e", padx=10, pady=8)
+        ctk.CTkLabel(form_frame, text="CANTIDAD UTILIZADA:", font=("TT NORMS PRO",14,"bold"),text_color="#87898F").grid(row=7, column=0, sticky="e", padx=10, pady=8)
         self.cantidad_entry = ctk.CTkEntry(form_frame, width=250, fg_color="#EFEFEF", text_color="#87898F", state="disabled")
-        self.cantidad_entry.grid(row=6, column=1, columnspan=2, sticky="w", padx=10, pady=8)
+        self.cantidad_entry.grid(row=7, column=1, columnspan=2, sticky="w", padx=10, pady=8)
 
         # JUSTIFICACION
-        ctk.CTkLabel(form_frame, text="JUSTIFICACION:", font=("TT NORMS PRO",14,"bold"),text_color="#87898F").grid(row=7, column=0, sticky="ne", padx=10, pady=8)
+        ctk.CTkLabel(form_frame, text="JUSTIFICACION:", font=("TT NORMS PRO",14,"bold"),text_color="#87898F").grid(row=8, column=0, sticky="ne", padx=10, pady=8)
         self.just_entry = ctk.CTkTextbox(form_frame, width=400, height=100, fg_color="#EFEFEF", text_color="#87898F")
-        self.just_entry.grid(row=7, column=1, columnspan=2, sticky="w", padx=10, pady=8)
+        self.just_entry.grid(row=8, column=1, columnspan=2, sticky="w", padx=10, pady=8)
 
         # RESPONSABLE
-        ctk.CTkLabel(form_frame, text="RESPONSABLE:", font=("TT NORMS PRO",14,"bold"),text_color="#87898F").grid(row=8, column=0, sticky="e", padx=10, pady=8)
+        ctk.CTkLabel(form_frame, text="RESPONSABLE:", font=("TT NORMS PRO",14,"bold"),text_color="#87898F").grid(row=9, column=0, sticky="e", padx=10, pady=8)
         self.resp_entry = ctk.CTkComboBox(form_frame, values=self.obtener_responsables(), width=250, fg_color="#EFEFEF", text_color="#87898F",state="readonly")
-        self.resp_entry.grid(row=8, column=1, columnspan=2, sticky="w", padx=10, pady=8)
+        self.resp_entry.grid(row=9, column=1, columnspan=2, sticky="w", padx=10, pady=8)
 
         # ORDEN COMPRA
-        ctk.CTkLabel(form_frame, text="ORDEN DE COMPRA:", font=("TT NORMS PRO",14,"bold"),text_color="#87898F").grid(row=9, column=0, sticky="e", padx=10, pady=8)
+        ctk.CTkLabel(form_frame, text="ORDEN DE COMPRA:", font=("TT NORMS PRO",14,"bold"),text_color="#87898F").grid(row=10, column=0, sticky="e", padx=10, pady=8)
         self.orden_entry = ctk.CTkComboBox(form_frame, values=[], width=280, fg_color="#EFEFEF",text_color="#87898F",state="readonly")
-        self.orden_entry.grid(row=9, column=1, columnspan=2, sticky="w", padx=10, pady=8)
+        self.orden_entry.grid(row=10, column=1, columnspan=2, sticky="w", padx=10, pady=8)
 
         # BOTONES
         self.btn_guardar = ctk.CTkButton(form_frame, text="💾 Guardar", font=("TT NORMS PRO",16,"bold"), fg_color="#5FD0DF",text_color='white' ,hover_color="#56C0CE", command=self.guardar_registro, width=150,height=40)
-        self.btn_guardar.grid(row=10, column=1, pady=30)
+        self.btn_guardar.grid(row=11, column=1, pady=30)
         self.btn_borrar = ctk.CTkButton(form_frame, text="Borrar Todo", font=("TT NORMS PRO",16,"bold"), fg_color="#F1F1F4",text_color='#616161', hover_color="#EFF0F8", command=self.borrar_todo, width=150,height=40)
-        self.btn_borrar.grid(row=10, column=0, pady=30)
+        self.btn_borrar.grid(row=11, column=0, pady=30)
         
         # Cargar órdenes después de que la UI se renderice
         self.after(100, self._cargar_ordenes_async)
@@ -144,7 +153,7 @@ class RegistrarHoras(ctk.CTkFrame):
             print("Datos recibidos de evaluación:", data)
         EvaluacionProveedorModal(self, orden, proveedor, horas,equipo, callback=recibir)
 
-    def abrir_calendario(self):
+    def abrir_calendario(self, tipo):
         # Crear ventana emergente
         top = Toplevel(self)
         top.title("Seleccionar fecha")
@@ -176,9 +185,15 @@ class RegistrarHoras(ctk.CTkFrame):
 
         # Botón seleccionar
         def seleccionar_fecha():
-            self.fecha_entry.delete(0, "end")
-            self.fecha_entry.insert(0, cal.get_date())
+            if tipo == "inicio":
+                self.fecha_entry.delete(0, "end")
+                self.fecha_entry.insert(0, cal.get_date())
+            else:
+                self.fecha_final_entry.delete(0, "end")
+                self.fecha_final_entry.insert(0, cal.get_date())
             top.destroy()
+            # Recalcular cantidad de horas después de seleccionar fecha
+            self.calcular_cantidad()
 
         ctk.CTkButton(
             top,
@@ -240,8 +255,12 @@ class RegistrarHoras(ctk.CTkFrame):
     def calcular_cantidad(self):
         if self.hora_inicio.get() and self.hora_final.get():
             try:
-                inicio = datetime.strptime(self.hora_inicio.get(), "%H:%M")
-                final = datetime.strptime(self.hora_final.get(), "%H:%M")
+                dia_inicio = self.fecha_entry.get()
+                dia_final = self.fecha_final_entry.get()                
+                #nuevo calculo considerando fecha y hora
+                inicio = datetime.strptime(dia_inicio + " " + self.hora_inicio.get(), "%Y-%m-%d %H:%M")
+                final = datetime.strptime(dia_final + " " + self.hora_final.get(), "%Y-%m-%d %H:%M")
+                
                 delta = (final - inicio).total_seconds() / 3600  # decimal
                 self.cantidad_entry.configure(state="normal")
                 
@@ -333,7 +352,8 @@ class RegistrarHoras(ctk.CTkFrame):
             "RESPONSABLE": self.resp_entry.get(),
             "ORDEN_COMPRA": orden_solo,
             "ID_SECTOR": self.id_sector,
-            "TIPO_EQUIPO": equipo
+            "TIPO_EQUIPO": equipo,
+            "FECHA_FINALIZACION" : self.fecha_final_entry.get()
         }
         
         informacion = info_orden(orden_solo)
@@ -344,7 +364,6 @@ class RegistrarHoras(ctk.CTkFrame):
             validacion = validar_horas_disponibles(id_sector=self.id_sector, orden_compra=orden_solo, datos=datos)
             print("Resultado de validar_horas_disponibles:", validacion)
             if not validacion:
-                self.borrar_todo()
                 return
             if validacion == False:
                 print("borrando las coas")
@@ -475,6 +494,7 @@ class RegistrarHoras(ctk.CTkFrame):
     def borrar_todo(self):
         print("Borrando campos del formulario...")
         self.fecha_entry.delete(0,"end")
+        self.fecha_final_entry.delete(0,"end")
         self.hora_inicio.delete(0,"end")
         self.hora_final.delete(0,"end")
         self.cantidad_entry.configure(state="normal")
