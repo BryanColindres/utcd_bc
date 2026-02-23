@@ -281,14 +281,16 @@ class RegistrarHoras(ctk.CTkFrame):
             except:
                 pass
 
-    def validar_fecha(self, entry):
+    def validar_fecha(self, entry,hora_inicio,hora_final,fecha_final_entry):
         fecha_texto = entry.get().strip()
+        fecha_final_texto = fecha_final_entry.get().strip()
         if not fecha_texto:
             # Permitir campo vacío sin error
             entry.configure(fg_color="#EFEFEF")
             return 
         try:
             fecha = datetime.strptime(fecha_texto, "%Y-%m-%d")
+            fecha_final = datetime.strptime(fecha_final_texto, "%Y-%m-%d")
             # opcional: validar que no sea fecha futura
             hoy = datetime.today().date()
             print("Fecha ingresada:", fecha.date(), "Fecha actual:", hoy)
@@ -299,7 +301,26 @@ class RegistrarHoras(ctk.CTkFrame):
                     messagebox.showerror("Error", "La fecha no puede ser futura")
                     self.mensaje_abierto = False
                     return "error"
-            
+            # verificar que si el dia de finalización es hoy, la hora no sobrepase la hora actual
+            if fecha_final.date() == hoy:
+                hora_final_str = self.hora_final.get().strip()
+                if hora_final_str:
+                    try:
+                        h, m = map(int, hora_final_str.split(":"))
+                        if h < 0 or h > 23 or m < 0 or m > 59:
+                            raise ValueError
+                        hora_final = datetime.strptime(hora_final_str, "%H:%M").time()
+                        ahora = datetime.now().time()
+                        if hora_final > ahora:
+                            entry.configure(fg_color="#FDEDEC")
+                            if not getattr(self, "mensaje_abierto", False):
+                                self.mensaje_abierto = True
+                                messagebox.showerror("Error", "La fecha y hora final no pueden ser después de la fecha y hora actual")
+                                self.mensaje_abierto = False
+                                return "error"
+                    except (ValueError, IndexError):
+                        # Si el formato de hora es incorrecto, lo validamos en la función de validar_hora, aquí solo nos enfocamos en la fecha.
+                        pass
             # Fecha válida
             entry.configure(fg_color="#EFEFEF")
             return "ok"
@@ -319,7 +340,7 @@ class RegistrarHoras(ctk.CTkFrame):
             or not self.resp_entry.get() or not self.just_entry.get("1.0","end-1c"):
             messagebox.showerror("Error","Complete todos los campos obligatorios")
             return 
-        mensaje_error = self.validar_fecha(self.fecha_entry)
+        mensaje_error = self.validar_fecha(self.fecha_entry,self.hora_inicio,self.hora_final,self.fecha_final_entry)
         if mensaje_error == "error":
             return
         # Verificar errores de validación visual (color de fondo)
