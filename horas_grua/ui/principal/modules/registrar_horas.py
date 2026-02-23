@@ -364,6 +364,7 @@ class RegistrarHoras(ctk.CTkFrame):
             validacion = validar_horas_disponibles(id_sector=self.id_sector, orden_compra=orden_solo, datos=datos)
             print("Resultado de validar_horas_disponibles:", validacion)
             if not validacion:
+                self.borrar_todo()
                 return
             if validacion == False:
                 print("borrando las coas")

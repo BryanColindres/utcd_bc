@@ -396,6 +396,35 @@ def hay_solapamiento(orden_compra, id_sector, tipo_equipo, fecha_utilizacion, ho
         # En caso de error, devolvemos True para prevenir inserciones peligrosas
         return True
 
+def fecha_utilizacion_menor_a_fecha_creacion(orden_compra, tipo_equipo, fecha_utilizacion):
+    print('ENTRE A FECHA UTILIZACION MENOR A FECHA CREACION')
+    """Verificar que la fecha de utilizacion no sea menor a la fecha de creación"""
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            select fecha from HORAS_GRUA_ORDEN_COMPRA where ORDEN_COMPRA = ? and TIPO_EQUIPO = ?
+              AND Activo = 1
+            """,(orden_compra, tipo_equipo)
+        ) 
+        result = cursor.fetchone()
+        conn.close()
+        if result is None:
+            # Si no existe la orden, permitir (no es menor)
+            return False, None
+        fecha_creacion = result[0]
+        if fecha_creacion is None:
+            # Si no existe la orden, permitir (no es menor)
+            return False, None
+        # Convertir el string de fecha a datetime.date para comparación correcta
+        fecha_util_date = datetime.strptime(fecha_utilizacion, "%Y-%m-%d").date()
+        return fecha_util_date < fecha_creacion, fecha_creacion
+    except Exception as e:
+        messagebox.showerror("Error", f"No se pudo verificar la fecha de creación de la orden:\n{str(e)}")
+        # En caso de error, devolvemos False para permitir la inserción
+        return False, None
+
 def insertar_hora_grua(datos):
     print('ENTRE A INSERTAR HORA GRUA')
     """
@@ -406,6 +435,10 @@ def insertar_hora_grua(datos):
         return False
     if sobrepasa24horas(datos["ORDEN_COMPRA"], datos["ID_SECTOR"], datos["TIPO_EQUIPO"],datos["FECHA_UTILIZACION"]):
         messagebox.showwarning("Aviso", "La cantidad de horas utilizadas para esta orden de compra ya supera las 24 horas en el mismo día. No se puede agregar más horas para esta orden en este día.")
+        return False
+    is_menor, fecha_creacion = fecha_utilizacion_menor_a_fecha_creacion(datos["ORDEN_COMPRA"], datos["TIPO_EQUIPO"], datos["FECHA_UTILIZACION"])
+    if is_menor:
+        messagebox.showwarning("Aviso", f"La fecha de utilización no puede ser menor a la fecha de creación de la orden de compra ({fecha_creacion}).")
         return False
 
     try:
